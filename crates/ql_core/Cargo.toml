@@ -31,3 +31,4 @@ sha2 = "0.10"
 quick-xml = { version = "0.37", features = ["encoding", "serialize"] }
 # Removing UNICODE characters from XML log
 any_ascii = "0.3"
+symlink-rs = "1.0.0"
