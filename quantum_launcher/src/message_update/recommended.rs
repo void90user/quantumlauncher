@@ -1,8 +1,6 @@
-use std::collections::HashSet;
-
-use iced::{futures::executor::block_on, Task};
-use ql_core::{json::InstanceConfigJson, InstanceSelection, IntoStringError, JsonFileError, ModId};
-use ql_mod_manager::store::{RecommendedMod, RECOMMENDED_MODS};
+use iced::{Task, futures::executor::block_on};
+use ql_core::{InstanceSelection, IntoStringError, JsonFileError, ModId, json::InstanceConfigJson};
+use ql_mod_manager::store::{RECOMMENDED_MODS, RecommendedMod};
 
 use crate::state::{
     Launcher, MenuCurseforgeManualDownload, MenuRecommendedMods, Message, ProgressBar,
@@ -37,11 +35,6 @@ impl Launcher {
                                 .into_iter()
                                 .map(|n| (n.enabled_by_default, n))
                                 .collect(),
-                            filters: HashSet::from_iter(
-                                ql_mod_manager::store::recommended::Category::ALL
-                                    .iter()
-                                    .cloned(),
-                            ),
                             config,
                         }
                     });
@@ -57,21 +50,9 @@ impl Launcher {
                     }
                 }
             }
-            RecommendedModMessage::ToggleFilter(category, t) => {
-                if let State::RecommendedMods(MenuRecommendedMods::Loaded { filters, .. }) =
-                    &mut self.state
-                {
-                    if t {
-                        filters.insert(category);
-                    } else if filters.len() > 1 {
-                        filters.remove(&category);
-                    }
-                }
-            }
             RecommendedModMessage::Download => {
-                if let State::RecommendedMods(MenuRecommendedMods::Loaded {
-                    mods, config, ..
-                }) = &mut self.state
+                if let State::RecommendedMods(MenuRecommendedMods::Loaded { mods, config }) =
+                    &mut self.state
                 {
                     let (sender, receiver) = std::sync::mpsc::channel();
 

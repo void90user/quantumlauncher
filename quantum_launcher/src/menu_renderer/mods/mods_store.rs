@@ -1,14 +1,14 @@
 use frostmark::MarkWidget;
 use iced::{
+    Length,
     widget::{self, column, row},
-    Alignment, Length,
 };
 use ql_core::{Loader, ModId, StoreBackendType};
 use ql_mod_manager::store::{QueryType, SearchMod};
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, tooltip, Element, FONT_DEFAULT, FONT_MONO},
+    menu_renderer::{Element, FONT_DEFAULT, FONT_MONO, back_button, button_with_icon, tooltip},
     state::{
         ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message, ModOperation,
     },
@@ -187,7 +187,11 @@ impl MenuModsDownload {
             .mod_index
             .mods
             .contains_key(&hit.get_id(backend).get_index_str())
-            || self.mod_index.mods.values().any(|n| n.name == hit.title);
+            || self
+                .mod_index
+                .mods
+                .values()
+                .any(|n| n.name == hit.title && n.project_source != backend);
         let is_downloading = self
             .mods_download_in_progress
             .contains_key(&ModId::from_pair(&hit.id, backend));
@@ -217,7 +221,12 @@ impl MenuModsDownload {
             action_button,
             widget::button(
                 row!(
-                    images.view(hit.icon_url.as_deref(), Some(32.0), Some(32.0)),
+                    images.view(
+                        &hit.icon_url,
+                        Some(32.0),
+                        Some(32.0),
+                        column!(widget::text("...")).into()
+                    ),
                     column!(
                         icons::download_s(20),
                         widget::text(Self::format_downloads(hit.downloads)).size(12),
@@ -275,12 +284,16 @@ impl MenuModsDownload {
     ) -> Element<'a> {
         // Parses the Markdown description of the mod.
         let markdown_description = if let Some(desc) = &self.description {
-            column!(MarkWidget::new(desc)
-                .on_clicking_link(Message::CoreOpenLink)
-                .on_drawing_image(|img| { images.view(Some(img.url), img.width, img.height) })
-                .on_updating_state(|n| InstallModsMessage::TickDesc(n).into())
-                .font(FONT_DEFAULT)
-                .font_mono(FONT_MONO))
+            column!(
+                MarkWidget::new(desc)
+                    .on_clicking_link(Message::CoreOpenLink)
+                    .on_drawing_image(|img| {
+                        images.view(img.url, img.width, img.height, "".into())
+                    })
+                    .on_updating_state(|n| InstallModsMessage::TickDesc(n).into())
+                    .font(FONT_DEFAULT)
+                    .font_mono(FONT_MONO)
+            )
         } else {
             let dots = ".".repeat((tick_timer % 3) + 1);
             column!(widget::text!("Loading...{dots}"))
@@ -297,8 +310,8 @@ impl MenuModsDownload {
         );
 
         widget::scrollable(
-            column![
-                row![
+            column!(
+                row!(
                     back_button().on_press(InstallModsMessage::BackToMainScreen.into()),
                     widget::tooltip(
                         button_with_icon(icons::globe(), "Open Mod Page", 14)
@@ -309,27 +322,20 @@ impl MenuModsDownload {
                     .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                     button_with_icon(icons::floppydisk(), "Copy ID", 14)
                         .on_press(Message::CoreCopyText(hit.id.clone())),
-                ]
+                )
                 .spacing(5),
-                row![
-                    images.view(hit.icon_url.as_deref(), Some(32.0), Some(32.0)),
+                row!(
+                    images.view(&hit.icon_url, Some(32.0), Some(32.0), "".into()),
                     widget::text(&hit.title)
                         .shaping(widget::text::Shaping::Advanced)
-                        .size(24),
-                    column![
-                        icons::download_s(14),
-                        widget::text(Self::format_downloads(hit.downloads)).size(12),
-                    ]
-                    .align_x(Alignment::Center)
-                    .spacing(5),
-                ]
-                .align_y(Alignment::Center)
+                        .size(24)
+                )
                 .spacing(10),
                 widget::text(&hit.description)
                     .shaping(widget::text::Shaping::Advanced)
                     .size(20),
                 markdown_description
-            ]
+            )
             .padding(20)
             .spacing(20),
         )
@@ -359,9 +365,5 @@ fn safe_slice(s: &str, max_len: usize) -> &str {
     for (i, _) in s.char_indices().take(max_len) {
         end = i;
     }
-    if end == 0 {
-        s
-    } else {
-        &s[..end]
-    }
+    if end == 0 { s } else { &s[..end] }
 }

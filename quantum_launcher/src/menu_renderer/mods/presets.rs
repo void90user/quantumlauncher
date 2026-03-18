@@ -1,17 +1,14 @@
 use std::collections::HashSet;
 
-use iced::{
-    widget::{self, column, row},
-    Alignment, Length,
-};
+use iced::{Length, widget};
 use ql_core::SelectedMod;
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, tsubtitle, Element},
+    menu_renderer::{Element, back_button, button_with_icon, tsubtitle},
     state::{
         EditPresetsMessage, ManageModsMessage, MenuEditPresets, MenuRecommendedMods, Message,
-        ModListEntry, RecommendedModMessage, SelectedState,
+        ModListEntry, SelectedState,
     },
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -19,25 +16,25 @@ use crate::{
 impl MenuEditPresets {
     pub fn view(&'_ self) -> Element<'_> {
         if let Some(progress) = &self.progress {
-            return column![
+            return widget::column!(
                 widget::text("Installing mods").size(20),
                 progress.view(),
                 widget::text("Check debug log (at the bottom) for more info").size(12),
-            ]
+            )
             .padding(10)
             .spacing(10)
             .into();
         }
 
         if self.is_building {
-            return column![widget::text("Building Preset").size(20)]
+            return widget::column!(widget::text("Building Preset").size(20))
                 .padding(10)
                 .spacing(10)
                 .into();
         }
 
-        let p_main = row![
-            column![
+        let p_main = widget::row![
+            widget::column![
                 back_button().on_press(ManageModsMessage::Open.into()),
                 widget::text(
                     r"Mod Presets (.qmp files) are a
@@ -65,8 +62,8 @@ Modrinth/Curseforge modpack"
             .padding(10)
             .spacing(10),
             widget::container(
-                column![
-                    column![
+                widget::column![
+                    widget::column![
                         widget::button(if let SelectedState::All = self.selected_state {
                             "Unselect All"
                         } else {
@@ -134,82 +131,48 @@ impl MenuRecommendedMods {
         match self {
             MenuRecommendedMods::Loading { progress, .. } => progress.view().padding(10).into(),
             MenuRecommendedMods::InstallALoader => {
-                column![
+                widget::column![
                     back_button,
                     "Install a mod loader (like Fabric/Forge/NeoForge/Quilt/etc, whichever is compatible)",
                     "You need one before you can install mods"
                 ].padding(10).spacing(5).into()
             }
             MenuRecommendedMods::NotSupported => {
-                column![
+                widget::column![
                     back_button,
                     "No recommended mods found :)"
                 ].padding(10).spacing(5).into()
             }
-            MenuRecommendedMods::Loaded { mods, filters, .. } => {
-                let content = column![
-                    row![
+            MenuRecommendedMods::Loaded { mods, .. } => {
+                let content: Element =
+                    widget::column!(
                         back_button,
                         button_with_icon(icons::download(), "Download Recommended Mods", 16)
-                            .on_press(RecommendedModMessage::Download.into()),
-                    ].spacing(10),
-                    row!["Filter:"]
-                        .extend(ql_mod_manager::store::recommended::Category::ALL.iter().map(|n| {
-                            widget::checkbox(n.to_string(), filters.contains(n))
-                                .size(14)
-                                .on_toggle(|t| RecommendedModMessage::ToggleFilter(*n, t).into()).into()
+                            .on_press(crate::state::RecommendedModMessage::Download.into()),
+                        widget::column(mods.iter().enumerate().map(|(i, (e, n))| {
+                            let elem: Element = widget::checkbox(n.name, *e)
+                                .on_toggle(move |n| {
+                                    crate::state::RecommendedModMessage::Toggle(i, n).into()
+                                })
+                                .into();
+                            widget::column!(
+                                elem,
+                                widget::text(n.description)
+                                    .shaping(widget::text::Shaping::Advanced)
+                                    .size(12)
+                            )
+                                .spacing(5)
+                                .into()
                         }))
-                        .align_y(Alignment::Center)
-                        .spacing(5),
-                    widget::horizontal_rule(1),
-                    mods_list(mods, filters),
-                    widget::text("Credit to Void98 (https://github.com/void90user) for many of these :D").size(12).style(tsubtitle)
-                ].padding(10).spacing(10);
+                        .spacing(10)
+                    )
+                    .spacing(10)
+                    .into();
 
-                widget::scrollable(content)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
+                widget::scrollable(widget::column![content].padding(10))
                     .style(|t: &LauncherTheme, status| t.style_scrollable_flat_dark(status))
                     .into()
             }
         }
     }
-}
-
-fn mods_list(
-    mods: &[(bool, ql_mod_manager::store::RecommendedMod)],
-    filters: &HashSet<ql_mod_manager::store::recommended::Category>,
-) -> widget::Column<'static, Message, LauncherTheme> {
-    widget::column(mods.chunks(2).enumerate().map(|(i, chunks)| {
-        widget::row(
-            chunks
-                .iter()
-                .enumerate()
-                .filter(|n| filters.contains(&n.1 .1.category))
-                .map(|(j, (enabled, m))| {
-                    let idx = (i * 2) + j;
-                    widget::mouse_area(
-                        row![
-                            widget::checkbox("", *enabled)
-                                .spacing(0)
-                                .on_toggle(move |t| RecommendedModMessage::Toggle(idx, t).into()),
-                            column![
-                                widget::text!("{} ({})", m.name, m.category).size(14),
-                                widget::text(m.description)
-                                    .shaping(widget::text::Shaping::Advanced)
-                                    .style(tsubtitle)
-                                    .size(12)
-                            ]
-                            .spacing(2)
-                        ]
-                        .width(Length::FillPortion(1))
-                        .spacing(5),
-                    )
-                    .on_press(RecommendedModMessage::Toggle(idx, !*enabled).into())
-                    .into()
-                }),
-        )
-        .into()
-    }))
-    .spacing(10)
 }
