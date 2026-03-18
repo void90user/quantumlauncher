@@ -4022,7 +4022,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "symlink-rs",
  "thiserror 2.0.14",
  "tokio",
  "tokio-util",
@@ -5124,12 +5123,6 @@ dependencies = [
  "yazi",
  "zeno",
 ]
-
-[[package]]
-name = "symlink-rs"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0d77c399f3896712893b642cde851fdc45de488a7c423c4cf51eb0af470e4d1"
 
 [[package]]
 name = "syn"
