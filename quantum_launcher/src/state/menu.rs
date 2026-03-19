@@ -24,7 +24,7 @@ use ql_core::{
     jarmod::JarMods,
     json::{InstanceConfigJson, VersionDetails, instance_config::MainClassMode},
 };
-use ql_mod_manager::loaders::paper::PaperVersion;
+use ql_mod_manager::{loaders::paper::PaperVersion, store::SearchMod};
 use ql_mod_manager::{
     loaders::{self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress},
     store::{CurseforgeNotAllowed, ModConfig, ModIndex, QueryType, RecommendedMod, SearchResult},
@@ -555,6 +555,7 @@ pub enum MenuRecommendedMods {
     Loaded {
         mods: Vec<(bool, RecommendedMod)>,
         filters: HashSet<ql_mod_manager::store::recommended::Category>,
+        mod_info: HashMap<ModId, SearchMod>,
         config: InstanceConfigJson,
     },
     InstallALoader,

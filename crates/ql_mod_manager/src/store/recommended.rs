@@ -7,7 +7,7 @@ use ql_core::{
     json::VersionDetails, pt,
 };
 
-use crate::store::{ModIndex, get_latest_version_date};
+use crate::store::{get_info_bulk, get_latest_version_date, ModIndex, SearchMod};
 
 use super::ModError;
 
@@ -27,12 +27,18 @@ impl RecommendedMod {
         instance: InstanceSelection,
         loader: Loader,
         sender: Sender<GenericProgress>,
-    ) -> Result<Vec<Self>, ModError> {
+    ) -> Result<(Vec<Self>, Vec<SearchMod>), ModError> {
         const LIMIT: usize = 128;
 
         let json = VersionDetails::load(&instance).await?;
         let index = ModIndex::load(&instance).await?;
         let version = json.get_id();
+
+        let bulk_ids = ids
+            .iter()
+            .map(|n| ModId::from_pair(n.id, n.backend))
+            .collect();
+        let bulk_task = tokio::spawn(get_info_bulk(bulk_ids));
 
         info!("Checking compatibility");
         let mut mods = Vec::new();
@@ -57,7 +63,8 @@ impl RecommendedMod {
             }
         }
 
-        Ok(mods)
+        let b = bulk_task.await?;
+        Ok((mods, b.unwrap_or_default()))
     }
 
     async fn check_compatibility(

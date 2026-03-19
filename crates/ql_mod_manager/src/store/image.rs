@@ -18,12 +18,11 @@ impl std::fmt::Debug for ImageResult {
 }
 
 pub async fn download_image(url: String) -> Result<ImageResult, String> {
-    if url.starts_with("https://cdn.modrinth.com/") {
-        // Does Modrinth CDN have a rate limit like their API?
-        // I have no idea but from my testing it doesn't seem like they do.
-
-        // let _lock = ql_instances::RATE_LIMITER.lock().await;
-    }
+    // Does Modrinth CDN have a rate limit like their API?
+    // I have no idea but from my testing it doesn't seem like they do.
+    // if url.starts_with("https://cdn.modrinth.com/") {
+    //     let _lock = ql_instances::RATE_LIMITER.lock().await;
+    // }
     if url.is_empty() {
         return Err("url is empty".to_owned());
     }

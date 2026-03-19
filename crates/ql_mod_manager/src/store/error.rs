@@ -15,14 +15,21 @@ pub enum ModError {
     Json(#[from] JsonError),
     #[error("{MOD_ERR_PREFIX}{0}")]
     Io(#[from] IoError),
-    #[error("{MOD_ERR_PREFIX}no compatible version found for mod: {0}")]
-    NoCompatibleVersionFound(String),
-    #[error("{MOD_ERR_PREFIX}no valid files found for mod")]
-    NoFilesFound,
+
     #[error("{MOD_ERR_PREFIX}couldn't add entry {1} to zip: {0}")]
     ZipIoError(std::io::Error, String),
     #[error("{MOD_ERR_PREFIX}zip error:\n{0}")]
     Zip(#[from] zip::result::ZipError),
+    #[error("while checking for mod update:\ncould not parse date:\n{0}")]
+    Chrono(#[from] chrono::ParseError),
+    #[error("{MOD_ERR_PREFIX}error joining async task:\n{0}")]
+    Join(#[from] tokio::task::JoinError),
+
+    #[error("{MOD_ERR_PREFIX}no compatible version found for mod: {0}")]
+    NoCompatibleVersionFound(String),
+    #[error("{MOD_ERR_PREFIX}no valid files found for mod")]
+    NoFilesFound,
+
     #[error(
         "{MOD_ERR_PREFIX}no \"minecraft\" game entry found in curseforge API\n\nThis is a bug, please report in discord!"
     )]
@@ -31,8 +38,6 @@ pub enum ModError {
         "curseforge is blocking you from downloading the mod {0}\nGo to the official website at:\nhttps://www.curseforge.com/minecraft/mc-mods/{1}\nand download from there"
     )]
     CurseforgeModNotAllowedForDownload(String, String),
-    #[error("while checking for mod update:\ncould not parse date:\n{0}")]
-    Chrono(#[from] chrono::ParseError),
     #[error(
         "{MOD_ERR_PREFIX}unknown project_type while downloading from store: {0}\n\nThis is a bug, please report in discord!"
     )]

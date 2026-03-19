@@ -23,7 +23,10 @@ use ql_instances::{
 };
 use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
-    store::{CurseforgeNotAllowed, ImageResult, ModIndex, QueryType, RecommendedMod, SearchResult},
+    store::{
+        CurseforgeNotAllowed, ImageResult, ModIndex, QueryType, RecommendedMod, SearchMod,
+        SearchResult,
+    },
 };
 
 use super::{LaunchTab, LauncherSettingsTab, LicenseTab, Res};
@@ -211,7 +214,7 @@ pub enum EditPresetsMessage {
 #[derive(Debug, Clone)]
 pub enum RecommendedModMessage {
     Open,
-    ModCheckResult(Res<Vec<RecommendedMod>>),
+    ModCheckResult(Res<(Vec<RecommendedMod>, Vec<SearchMod>)>),
     Toggle(usize, bool),
     ToggleFilter(ql_mod_manager::store::recommended::Category, bool),
     Download,
