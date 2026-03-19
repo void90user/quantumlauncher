@@ -8,7 +8,7 @@ use ql_mod_manager::store::{QueryType, SearchMod};
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, tooltip, Element, FONT_DEFAULT, FONT_MONO},
+    menu_renderer::{Element, FONT_DEFAULT, FONT_MONO, back_button, button_with_icon, tooltip},
     state::{
         ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message, ModOperation,
     },
@@ -187,7 +187,11 @@ impl MenuModsDownload {
             .mod_index
             .mods
             .contains_key(&hit.get_id(backend).get_index_str())
-            || self.mod_index.mods.values().any(|n| n.name == hit.title);
+            || self
+                .mod_index
+                .mods
+                .values()
+                .any(|n| n.name == hit.title && n.project_source != backend);
         let is_downloading = self
             .mods_download_in_progress
             .contains_key(&ModId::from_pair(&hit.id, backend));
@@ -277,7 +281,7 @@ impl MenuModsDownload {
         let markdown_description = if let Some(desc) = &self.description {
             column!(MarkWidget::new(desc)
                 .on_clicking_link(Message::CoreOpenLink)
-                .on_drawing_image(|img| { images.view(Some(img.url), img.width, img.height) })
+                .on_drawing_image(|img| images.view(Some(img.url), img.width, img.height))
                 .on_updating_state(|n| InstallModsMessage::TickDesc(n).into())
                 .font(FONT_DEFAULT)
                 .font_mono(FONT_MONO))
@@ -359,9 +363,5 @@ fn safe_slice(s: &str, max_len: usize) -> &str {
     for (i, _) in s.char_indices().take(max_len) {
         end = i;
     }
-    if end == 0 {
-        s
-    } else {
-        &s[..end]
-    }
+    if end == 0 { s } else { &s[..end] }
 }
