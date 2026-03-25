@@ -47,7 +47,7 @@ pub mod read_log;
 pub mod request;
 mod structs;
 mod urlcache;
-mod symbolic_link;
+mod hard_linking;
 
 pub use crate::json::InstanceConfigJson;
 pub use constants::*;
