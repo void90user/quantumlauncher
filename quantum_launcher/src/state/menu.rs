@@ -69,7 +69,6 @@ pub enum LaunchModal {
     SRenamingFolder(FolderId, String, bool),
 }
 
-
 pub enum InstanceNotes {
     Viewing {
         content: String,
@@ -619,6 +618,7 @@ pub enum State {
     /// Screen to guide new users to the launcher
     Welcome(MenuWelcome),
     ChangeLog,
+    #[cfg(feature = "auto_update")]
     UpdateFound(MenuLauncherUpdate),
 
     EditMods(MenuEditMods),
