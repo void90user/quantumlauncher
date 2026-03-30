@@ -2,8 +2,8 @@ use std::{collections::HashSet, fmt::Display, path::PathBuf, sync::mpsc::Sender,
 
 use chrono::DateTime;
 use ql_core::{
-    do_jobs, json::VersionDetails, pt, GenericProgress, InstanceSelection, IntoIoError, Loader,
-    ModId, StoreBackendType,
+    GenericProgress, InstanceSelection, IntoIoError, Loader, ModId, StoreBackendType, do_jobs,
+    json::VersionDetails, pt,
 };
 
 mod add_file;
@@ -58,6 +58,7 @@ pub trait Backend {
         version: &str,
         loader: Loader,
     ) -> Result<(DateTime<chrono::FixedOffset>, String), ModError>;
+
     /// Downloads a single mod to the `instance`.
     ///
     /// Optionally takes in a `sender` to use if it's a modpack.
@@ -85,7 +86,6 @@ pub trait Backend {
                 Ok(n) => not_allowed.extend(n),
                 Err(ModError::NoCompatibleVersionFound(name)) if ignore_incompatible => {
                     pt!("No compatible version found for mod {name} {id}, skipping...");
-                    continue;
                 }
                 Err(err) => return Err(err),
             }

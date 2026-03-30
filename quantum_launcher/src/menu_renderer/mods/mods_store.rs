@@ -279,15 +279,15 @@ impl MenuModsDownload {
     ) -> Element<'a> {
         // Parses the Markdown description of the mod.
         let markdown_description = if let Some(desc) = &self.description {
-            column!(MarkWidget::new(desc)
+            column![MarkWidget::new(desc)
                 .on_clicking_link(Message::CoreOpenLink)
                 .on_drawing_image(|img| images.view(Some(img.url), img.width, img.height))
                 .on_updating_state(|n| InstallModsMessage::TickDesc(n).into())
                 .font(FONT_DEFAULT)
-                .font_mono(FONT_MONO))
+                .font_mono(FONT_MONO)]
         } else {
             let dots = ".".repeat((tick_timer % 3) + 1);
-            column!(widget::text!("Loading...{dots}"))
+            column![widget::text!("Loading...{dots}")]
         };
 
         let url = format!(

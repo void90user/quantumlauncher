@@ -58,6 +58,7 @@ impl ImageState {
         let Some(url) = url else {
             return widget::Column::new().into();
         };
+
         if let Some(handle) = self.bitmap.get(url) {
             let mut e = widget::image(handle.clone()).content_fit(iced::ContentFit::ScaleDown);
             if let Some(s) = w {
