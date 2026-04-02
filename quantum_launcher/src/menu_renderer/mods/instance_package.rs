@@ -3,7 +3,7 @@ use iced::{Length, widget};
 use crate::{
     icons,
     menu_renderer::{Element, back_button, back_to_launch_screen, button_with_icon},
-    state::{MenuExportInstance, Message},
+    state::{MenuExportInstance, Message, PackageInstanceMessage},
 };
 
 impl MenuExportInstance {
@@ -19,7 +19,9 @@ impl MenuExportInstance {
                         format!("{}/", entry.name)
                     };
                     widget::checkbox(name, *enabled)
-                        .on_toggle(move |t| Message::ExportInstanceToggleItem(i, t))
+                        .on_toggle(move |t| {
+                            Message::Package(PackageInstanceMessage::ToggleItem(i, t))
+                        })
                         .into()
                 }))
                 .padding(5)
@@ -37,7 +39,7 @@ impl MenuExportInstance {
                     })
                     .text_line_height(1.68),
                     button_with_icon(icons::floppydisk(), "Export", 16)
-                        .on_press(Message::ExportInstanceStart),
+                        .on_press(Message::Package(PackageInstanceMessage::Start)),
                 ]
                 .spacing(5)
                 .wrap()
