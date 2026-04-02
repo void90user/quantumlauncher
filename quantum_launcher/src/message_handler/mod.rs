@@ -14,6 +14,7 @@ use crate::{
 use iced::Task;
 use iced::futures::executor::block_on;
 use iced::widget::scrollable::AbsoluteOffset;
+use ql_core::file_utils::exists;
 use ql_core::json::VersionDetails;
 use ql_core::json::instance_config::ModTypeInfo;
 use ql_core::read_log::{Diagnostic, ReadError};
@@ -255,6 +256,16 @@ impl Launcher {
                 version_json,
                 modal: None,
                 search: None,
+                // If you wanna test stuff out...
+                // info_message: Some(crate::state::ModInfoMessage {
+                //     text: "Hello, World!".to_owned(),
+                //     kind: crate::state::InfoMessageKind::AtPath(PathBuf::from("/home/mrmayman")),
+                // }),
+                // info_message: Some(crate::state::ModInfoMessage {
+                //     text: "Hello, World!".to_owned(),
+                //     kind: crate::state::InfoMessageKind::Success,
+                // }),
+                info_message: None,
                 width_name: 220.0,
                 list_shift_index: None,
                 list_scroll: AbsoluteOffset::default(),
@@ -315,8 +326,9 @@ impl Launcher {
                 .available_updates
                 .clone()
                 .into_iter()
-                .map(|(n, _, _)| n)
+                .map(|(id, version, _)| (id, version))
                 .collect();
+            let write_changelog = self.config.c_persistent().write_mod_update_changelog;
             let (sender, receiver) = std::sync::mpsc::channel();
             menu.mod_update_progress = Some(ProgressBar::with_recv_and_msg(
                 receiver,
@@ -324,8 +336,18 @@ impl Launcher {
             ));
             let selected_instance = self.selected_instance.clone().unwrap();
             Task::perform(
-                ql_mod_manager::store::apply_updates(selected_instance, updates, Some(sender)),
-                |n| ManageModsMessage::UpdatePerformDone(n.strerr()).into(),
+                ql_mod_manager::store::apply_updates(
+                    selected_instance,
+                    updates,
+                    Some(sender),
+                    write_changelog,
+                ),
+                move |n| {
+                    ManageModsMessage::UpdatePerformDone(
+                        n.strerr().map(|res| (res, write_changelog)),
+                    )
+                    .into()
+                },
             )
         } else {
             Task::none()
@@ -694,10 +716,10 @@ async fn copy_optifine_over(instance: &InstanceSelection) -> Result<(), String> 
     let installer_path = instance_dir.join("optifine/OptiFine.jar");
     let mods_dir = instance_dir.join(".minecraft/mods");
 
-    if !installer_path.exists() {
+    if !exists(&installer_path).await {
         return Ok(());
     }
-    if !mods_dir.exists() {
+    if !exists(&mods_dir).await {
         tokio::fs::create_dir_all(&mods_dir)
             .await
             .path(&mods_dir)
