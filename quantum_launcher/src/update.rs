@@ -1,5 +1,5 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceSelection, IntoStringError, err, info};
+use ql_core::{InstanceSelection, IntoIoError, IntoStringError, err, file_utils::DirItem, info};
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -10,8 +10,9 @@ use owo_colors::OwoColorize;
 use crate::launcher_update::UpdateCheckInfo;
 use crate::{
     state::{
-        AutoSaveKind, CustomJarState, GameProcess, LaunchTab, Launcher, LauncherSettingsMessage,
-        ManageModsMessage, MenuLaunch, MenuLicense, MenuWelcome, Message, State,
+        AutoSaveKind, CustomJarState, GameProcess, InfoMessage, LaunchTab, Launcher,
+        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense,
+        MenuWelcome, Message, ProgressBar, State,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -87,12 +88,7 @@ impl Launcher {
                 clear_selection,
                 is_server,
             } => {
-                let is_server = is_server
-                    .or(self
-                        .selected_instance
-                        .as_ref()
-                        .map(InstanceSelection::is_server))
-                    .unwrap_or_default();
+                let is_server = is_server.unwrap_or(self.server_selected());
                 if clear_selection {
                     self.unselect_instance();
                 }
@@ -176,8 +172,11 @@ impl Launcher {
             Message::InstallForge(kind) => {
                 return self.install_forge(kind);
             }
-            Message::InstallForgeEnd(Ok(())) | Message::UninstallLoaderEnd(Ok(())) => {
-                return self.go_to_edit_mods_menu();
+            Message::InstallForgeEnd(Ok(())) => {
+                return self.go_to_edit_mods_menu(Some(InfoMessage::success("Installed Forge")));
+            }
+            Message::UninstallLoaderEnd(Ok(())) => {
+                return self.go_to_edit_mods_menu(Some(InfoMessage::success("Uninstalled loader")));
             }
             Message::LaunchGameExited(Ok((status, instance, diagnostic))) => {
                 self.set_game_exited(status, &instance, diagnostic);
@@ -277,6 +276,103 @@ impl Launcher {
                 self.log_scroll = lines;
             }
 
+            Message::ExportInstanceOpen => {
+                self.state = State::ExportInstance(MenuExportInstance {
+                    entries: None,
+                    progress: None,
+                });
+                return Task::perform(
+                    ql_core::file_utils::read_filenames_from_dir(
+                        self.selected_instance
+                            .clone()
+                            .unwrap()
+                            .get_dot_minecraft_path(),
+                    ),
+                    |n| Message::ExportInstanceLoaded(n.strerr()),
+                );
+            }
+            Message::ExportInstanceLoaded(res) => {
+                let mut entries: Vec<(DirItem, bool)> = match res {
+                    Ok(n) => n
+                        .into_iter()
+                        .map(|n| {
+                            let enabled = !(n.name == ".fabric"
+                                || n.name == "logs"
+                                || n.name == "command_history.txt"
+                                || n.name == "realms_persistence.json"
+                                || n.name == "debug"
+                                || n.name == ".cache"
+                                // Common mods...
+                                || n.name == "authlib-injector.log"
+                                || n.name == "easy_npc"
+                                || n.name == "CustomSkinLoader"
+                                || n.name == ".bobby");
+                            (n, enabled)
+                        })
+                        .filter(|(n, _)| {
+                            !(n.name == "mod_index.json" || n.name == "launcher_profiles.json")
+                        })
+                        .collect(),
+                    Err(err) => {
+                        self.set_error(err);
+                        return Task::none();
+                    }
+                };
+                entries.sort_by(|(a, _), (b, _)| {
+                    // Folders before files, and then sorted alphabetically
+                    a.is_file.cmp(&b.is_file).then_with(|| a.name.cmp(&b.name))
+                });
+                if let State::ExportInstance(menu) = &mut self.state {
+                    menu.entries = Some(entries);
+                }
+            }
+            Message::ExportInstanceToggleItem(idx, t) => {
+                if let State::ExportInstance(MenuExportInstance {
+                    entries: Some(entries),
+                    ..
+                }) = &mut self.state
+                {
+                    if let Some((_, b)) = entries.get_mut(idx) {
+                        *b = t;
+                    }
+                }
+            }
+            Message::ExportInstanceStart => {
+                if let State::ExportInstance(MenuExportInstance {
+                    entries: Some(entries),
+                    progress,
+                }) = &mut self.state
+                {
+                    let (send, recv) = std::sync::mpsc::channel();
+                    *progress = Some(ProgressBar::with_recv(recv));
+
+                    let exceptions = entries
+                        .iter()
+                        .filter_map(|(n, b)| (!b).then_some(format!(".minecraft/{}", n.name)))
+                        .collect();
+
+                    return Task::perform(
+                        ql_packager::export_instance(
+                            self.selected_instance.clone().unwrap(),
+                            exceptions,
+                            Some(send),
+                        ),
+                        |n| Message::ExportInstanceFinished(n.strerr()),
+                    );
+                }
+            }
+            Message::ExportInstanceFinished(res) => match res {
+                Ok(bytes) => {
+                    if let Some(path) = rfd::FileDialog::new().save_file() {
+                        if let Err(err) = std::fs::write(&path, bytes).path(path) {
+                            self.set_error(err);
+                        } else {
+                            return self.go_to_main_menu(None);
+                        }
+                    }
+                }
+                Err(err) => self.set_error(err),
+            },
             Message::LicenseOpen => {
                 self.go_to_licenses_menu();
             }
@@ -356,7 +452,7 @@ impl Launcher {
     pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTab>) {
         if let State::Launch(_) = &self.state {
         } else {
-            _ = self.go_to_main_menu_with_message(None::<String>);
+            _ = self.go_to_main_menu(None);
         }
 
         if let State::Launch(MenuLaunch {

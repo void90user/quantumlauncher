@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 use crate::{
     config::sidebar::{FolderId, SDragLocation, SidebarSelection},
     message_handler::ForgeKind,
-    state::{LaunchModal, MenuEditModsModal, ModInfoMessage},
+    state::{InfoMessage, LaunchModal, MenuEditModsModal},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
 use iced::widget::{self, scrollable::AbsoluteOffset};
@@ -21,8 +21,8 @@ use ql_instances::auth::{
 use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
     store::{
-        Category, CurseforgeNotAllowed, ImageResult, ModId, ModIndex, QueryType, RecommendedMod,
-        SearchMod, SearchResult, StoreBackendType,
+        Category, CurseforgeNotAllowed, ModId, ModIndex, QueryType, RecommendedMod, SearchMod,
+        SearchResult, StoreBackendType,
     },
 };
 
@@ -130,7 +130,7 @@ pub enum ManageModsMessage {
     UpdateCheckToggle(usize, bool),
     UpdatePerform,
     UpdatePerformDone(Res<(Option<ql_mod_manager::store::ChangelogFile>, bool)>),
-    SetInfoMessage(Option<ModInfoMessage>),
+    SetInfoMessage(Option<InfoMessage>),
 
     /// Add a mod, preset or modpack to the current instance.
     /// The field represents whether to delete the file after importing it.
@@ -390,6 +390,7 @@ pub enum MainMenuMessage {
     Modal(Option<LaunchModal>),
     InstanceSelected(InstanceSelection),
     UsernameSet(String),
+    SetInfoMessage(Option<InfoMessage>),
 }
 
 #[derive(Debug, Clone)]
@@ -463,7 +464,7 @@ pub enum Message {
     Package(PackageInstanceMessage),
 
     MScreenOpen {
-        message: Option<String>,
+        message: Option<InfoMessage>,
         clear_selection: bool,
         is_server: Option<bool>,
     },
@@ -498,7 +499,7 @@ pub enum Message {
     CoreTryQuit,
     CoreHideModal,
 
-    CoreImageDownloaded(Res<ImageResult>),
+    CoreImageDownloaded(Res<ql_mod_manager::store::image::Output>),
 
     CoreLogToggle,
     CoreLogScroll(isize),

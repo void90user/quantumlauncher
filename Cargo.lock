@@ -3946,6 +3946,7 @@ version = "0.0.0"
 dependencies = [
  "chrono",
  "futures",
+ "image",
  "indexmap",
  "owo-colors",
  "ql_core",
