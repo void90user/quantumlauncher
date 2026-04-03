@@ -18,6 +18,7 @@ mod recommended;
 mod toggle;
 mod types;
 mod update;
+mod export;
 
 pub use add_file::add_files;
 pub use curseforge::CurseforgeBackend;
