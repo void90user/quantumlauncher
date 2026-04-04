@@ -2,12 +2,11 @@ use std::sync::{Arc, Mutex, mpsc::Sender};
 
 use futures::StreamExt;
 use owo_colors::colored::OwoColorize;
-use ql_core::{
-    GenericProgress, InstanceSelection, Loader, ModId, StoreBackendType, err, info,
-    json::VersionDetails, pt,
-};
+use ql_core::{GenericProgress, InstanceSelection, Loader, err, info, json::VersionDetails, pt};
 
-use crate::store::{get_info_bulk, get_latest_version_date, ModIndex, SearchMod};
+use crate::store::{
+    ModId, ModIndex, SearchMod, StoreBackendType, get_info_bulk, get_latest_version_date,
+};
 
 use super::ModError;
 
@@ -77,9 +76,7 @@ impl RecommendedMod {
         index: &ModIndex,
     ) -> Option<Self> {
         let mod_id = ModId::from_pair(self.id, self.backend);
-        if index.mods.contains_key(&mod_id.get_index_str())
-            || index.mods.iter().any(|n| n.1.name == self.name)
-        {
+        if index.mods.contains_key(&mod_id) || index.mods.iter().any(|n| n.1.name == self.name) {
             return None;
         }
 
@@ -215,7 +212,6 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
-
     // Optional Extras
     RecommendedMod {
         id: "YL57xq9U",
@@ -497,7 +493,6 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
-
 ];
 
 // Recommended Mod template

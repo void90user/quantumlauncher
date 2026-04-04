@@ -4,8 +4,7 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row},
 };
-use ql_core::{ModId, SelectedMod};
-use ql_mod_manager::store::SearchMod;
+use ql_mod_manager::store::{ModId, SearchMod, SelectedMod};
 
 use crate::{
     icons,

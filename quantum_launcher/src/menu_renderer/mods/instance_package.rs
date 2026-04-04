@@ -1,11 +1,11 @@
 use iced::{
-    widget::{self, column, row},
     Length,
+    widget::{self, column, row},
 };
 
 use crate::{
     icons,
-    menu_renderer::{back_button, back_to_launch_screen, button_with_icon, Element},
+    menu_renderer::{Element, back_button, back_to_launch_screen, button_with_icon},
     state::{MenuExportInstance, Message, PackageInstanceMessage},
 };
 
@@ -17,8 +17,12 @@ impl MenuExportInstance {
             "Select the contents of the instance you want to clone"
         };
 
-        let btn = button_with_icon(icons::floppydisk(), "Export", 16)
-            .on_press(PackageInstanceMessage::Start.into());
+        let btn = button_with_icon(
+            icons::floppydisk(),
+            if self.is_exporting { "Export" } else { "Clone" },
+            16,
+        )
+        .on_press(PackageInstanceMessage::Start.into());
 
         let bottom: Element = if self.is_exporting {
             column![

@@ -3,12 +3,12 @@ use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 use crate::{
     config::sidebar::{FolderId, SDragLocation, SidebarSelection},
     message_handler::ForgeKind,
-    state::{LaunchModal, MenuEditModsModal},
+    state::{InfoMessage, LaunchModal, MenuEditModsModal},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
 use iced::widget::{self, scrollable::AbsoluteOffset};
 use ql_core::{
-    InstanceSelection, LaunchedProcess, ListEntry, Loader, ModId, StoreBackendType,
+    InstanceSelection, LaunchedProcess, ListEntry, Loader,
     file_utils::DirItem,
     jarmod::JarMods,
     json::instance_config::{MainClassMode, PreLaunchPrefixMode},
@@ -21,8 +21,8 @@ use ql_instances::auth::{
 use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
     store::{
-        CurseforgeNotAllowed, ImageResult, ModIndex, QueryType, RecommendedMod, SearchMod,
-        SearchResult,
+        Category, CurseforgeNotAllowed, ModId, ModIndex, QueryType, RecommendedMod, SearchMod,
+        SearchResult, StoreBackendType,
     },
 };
 
@@ -84,7 +84,6 @@ pub enum EditInstanceMessage {
     MemoryChanged(f32),
     MemoryInputChanged(String),
     LoggingToggle(bool),
-    CloseLauncherToggle(bool),
     SetMainClass(Option<MainClassMode>, Option<String>),
 
     JavaArgs(ListMessage),
@@ -129,7 +128,8 @@ pub enum ManageModsMessage {
     UpdateCheckResult(Res<Vec<(ModId, String)>>),
     UpdateCheckToggle(usize, bool),
     UpdatePerform,
-    UpdatePerformDone(Res),
+    UpdatePerformDone(Res<(Option<ql_mod_manager::store::ChangelogFile>, bool)>),
+    SetInfoMessage(Option<InfoMessage>),
 
     /// Add a mod, preset or modpack to the current instance.
     /// The field represents whether to delete the file after importing it.
@@ -170,20 +170,27 @@ pub enum ManageJarModsMessage {
 pub enum InstallModsMessage {
     Open,
     TickDesc(frostmark::UpdateMsg),
-    SearchInput(String),
-    SearchResult(Res<SearchResult>),
 
-    Click(usize),
     BackToMainScreen,
-    LoadData(Res<(ModId, String)>),
-    Download(usize),
-    DownloadComplete(Res<(ModId, HashSet<CurseforgeNotAllowed>)>),
+    Click(usize),
+    LoadedDescription(Res<(ModId, String)>),
+    LoadedExtendedInfo(Res<(ModId, SearchMod)>),
     IndexUpdated(Res<ModIndex>),
     Scrolled(widget::scrollable::Viewport),
+
+    SearchInput(String),
+    SearchResult(Res<SearchResult>),
+    Download(usize),
+    DownloadComplete(Res<(ModId, HashSet<CurseforgeNotAllowed>)>),
     InstallModpack(ModId),
     Uninstall(usize),
     UninstallComplete(Res<Vec<ModId>>),
 
+    CategoriesLoaded(Res<Vec<Category>>),
+    CategoriesToggle(String),
+    CategoriesUseAll(bool),
+
+    ForceOpenSource(bool),
     ChangeBackend(StoreBackendType),
     ChangeQueryType(QueryType),
 }
@@ -285,6 +292,8 @@ pub enum LauncherSettingsMessage {
     ToggleAntialiasing(bool),
     ToggleWindowSize(bool),
     ToggleInstanceRemembering(bool),
+    ToggleModUpdateChangelog(bool),
+    AfterLaunchBehaviorChanged(crate::config::AfterLaunchBehavior),
     #[allow(unused)]
     ToggleWindowDecorations(bool),
 
@@ -381,6 +390,7 @@ pub enum MainMenuMessage {
     Modal(Option<LaunchModal>),
     InstanceSelected(InstanceSelection),
     UsernameSet(String),
+    SetInfoMessage(Option<InfoMessage>),
 }
 
 #[derive(Debug, Clone)]
@@ -414,6 +424,13 @@ pub enum PackageInstanceMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum ModDescriptionMessage {
+    Open(ModId),
+    LoadedDetails(Res<SearchMod>),
+    LoadedDescription(Res<String>),
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
     Error(String),
@@ -441,12 +458,13 @@ pub enum Message {
     ExportMods(ExportModsMessage),
     RecommendedMods(RecommendedModMessage),
     MainMenu(MainMenuMessage),
-    SidebarMessage(SidebarMessage),
+    Sidebar(SidebarMessage),
     #[allow(unused)]
     Package(PackageInstanceMessage),
+    ModDescription(ModDescriptionMessage),
 
     MScreenOpen {
-        message: Option<String>,
+        message: Option<InfoMessage>,
         clear_selection: bool,
         is_server: Option<bool>,
     },
@@ -481,7 +499,7 @@ pub enum Message {
     CoreTryQuit,
     CoreHideModal,
 
-    CoreImageDownloaded(Res<ImageResult>),
+    CoreImageDownloaded(Res<ql_mod_manager::store::image::Output>),
 
     CoreLogToggle,
     CoreLogScroll(isize),
@@ -513,7 +531,7 @@ macro_rules! from_m {
 }
 
 from_m!(MainMenu, MainMenuMessage);
-from_m!(SidebarMessage, SidebarMessage);
+from_m!(Sidebar, SidebarMessage);
 from_m!(ManageMods, ManageModsMessage);
 from_m!(ManageJarMods, ManageJarModsMessage);
 from_m!(InstallMods, InstallModsMessage);
@@ -522,7 +540,6 @@ from_m!(InstallFabric, InstallFabricMessage);
 from_m!(EditPresets, EditPresetsMessage);
 from_m!(ExportMods, ExportModsMessage);
 from_m!(RecommendedMods, RecommendedModMessage);
-
 from_m!(Account, AccountMessage);
 from_m!(CreateInstance, CreateInstanceMessage);
 from_m!(EditInstance, EditInstanceMessage);
@@ -532,3 +549,4 @@ from_m!(GameLog, GameLogMessage);
 from_m!(Window, WindowMessage);
 from_m!(Shortcut, ShortcutMessage);
 from_m!(Package, PackageInstanceMessage);
+from_m!(ModDescription, ModDescriptionMessage);

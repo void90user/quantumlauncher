@@ -1,5 +1,5 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceSelection, IntoStringError, err, info};
+use ql_core::{IntoStringError, err, info};
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -10,8 +10,9 @@ use owo_colors::OwoColorize;
 use crate::launcher_update::UpdateCheckInfo;
 use crate::{
     state::{
-        AutoSaveKind, CustomJarState, GameProcess, LaunchTab, Launcher, LauncherSettingsMessage,
-        ManageModsMessage, MenuLaunch, MenuLicense, MenuWelcome, Message, State,
+        AutoSaveKind, CustomJarState, GameProcess, InfoMessage, LaunchTab, Launcher,
+        LauncherSettingsMessage, ManageModsMessage, MenuLaunch, MenuLicense, MenuWelcome, Message,
+        State,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -56,7 +57,7 @@ impl Launcher {
             }
 
             Message::MainMenu(msg) => return self.update_main_menu(msg),
-            Message::SidebarMessage(msg) => return self.update_sidebar(msg),
+            Message::Sidebar(msg) => return self.update_sidebar(msg),
             Message::Account(msg) => return self.update_account(msg),
             Message::ManageMods(msg) => return self.update_manage_mods(msg),
             Message::ExportMods(msg) => return self.update_export_mods(msg),
@@ -74,6 +75,7 @@ impl Launcher {
             Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
             Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
             Message::InstallPaper(msg) => return self.update_install_paper(msg),
+            Message::ModDescription(msg) => return self.update_mod_description(msg),
 
             Message::LaunchStart => return self.launch_start(),
             Message::LaunchEnd(result) => return self.finish_launching(result),
@@ -86,12 +88,7 @@ impl Launcher {
                 clear_selection,
                 is_server,
             } => {
-                let is_server = is_server
-                    .or(self
-                        .selected_instance
-                        .as_ref()
-                        .map(InstanceSelection::is_server))
-                    .unwrap_or_default();
+                let is_server = is_server.unwrap_or(self.server_selected());
                 if clear_selection {
                     self.unselect_instance();
                 }
@@ -138,7 +135,7 @@ impl Launcher {
                     self.images.insert_image(image);
                 }
                 Err(err) => {
-                    err!("Could not download image: {err}");
+                    err!(no_log, "Could not download image: {err}");
                 }
             },
             Message::CoreTick => {
@@ -175,8 +172,11 @@ impl Launcher {
             Message::InstallForge(kind) => {
                 return self.install_forge(kind);
             }
-            Message::InstallForgeEnd(Ok(())) | Message::UninstallLoaderEnd(Ok(())) => {
-                return self.go_to_edit_mods_menu();
+            Message::InstallForgeEnd(Ok(())) => {
+                return self.go_to_edit_mods_menu(Some(InfoMessage::success("Installed Forge")));
+            }
+            Message::UninstallLoaderEnd(Ok(())) => {
+                return self.go_to_edit_mods_menu(Some(InfoMessage::success("Uninstalled loader")));
             }
             Message::LaunchGameExited(Ok((status, instance, diagnostic))) => {
                 self.set_game_exited(status, &instance, diagnostic);
@@ -342,8 +342,10 @@ impl Launcher {
 
         if is_auto_theme && interval {
             Task::perform(tokio::task::spawn_blocking(dark_light::detect), |n| {
-                LauncherSettingsMessage::LoadedSystemTheme(n.strerr().and_then(|n| n.strerr()))
-                    .into()
+                LauncherSettingsMessage::LoadedSystemTheme(
+                    n.strerr().and_then(IntoStringError::strerr),
+                )
+                .into()
             })
         } else {
             Task::none()
@@ -353,7 +355,7 @@ impl Launcher {
     pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTab>) {
         if let State::Launch(_) = &self.state {
         } else {
-            _ = self.go_to_main_menu_with_message(None::<String>);
+            _ = self.go_to_main_menu(None);
         }
 
         if let State::Launch(MenuLaunch {
