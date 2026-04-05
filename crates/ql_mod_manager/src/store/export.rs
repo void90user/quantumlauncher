@@ -1,8 +1,8 @@
+use std::ops::Index;
 use std::path::Path;
 use serde::{Deserialize, Serialize};
 use ql_core::InstanceSelection;
-use crate::store::ModIndex;
-
+use crate::store::{ModId, ModIndex};
 
 #[derive(Serialize)]
 pub struct ModrinthFileEntry {
@@ -36,13 +36,19 @@ pub struct ModrinthDependencies {
     fabric_loader: String,
 }
 
-async fn export_modpack(paths: Vec<&str>, selected_instance: InstanceSelection) {
+pub async fn export_modpack(paths: Vec<&str>, selected_instance: InstanceSelection) {
 
     let index = ModIndex::load(&selected_instance).await.unwrap();
-    let path = paths;
-    let paths = path
+    let full_path = paths;
+
+    let filenames: Vec<String> = full_path
         .iter()
-        .map(|p| p.)  // Square each number
+        .map(|p| Path::new(p).file_name().unwrap().to_string_lossy().into_owned())
+        .collect();
+
+    let mod_ids: Vec<ModId> = filenames
+        .iter()
+        .map(|n| ModId::Modrinth(n.to_string()))
         .collect();
 
 
