@@ -1,6 +1,7 @@
-use std::ops::Index;
-use std::path::Path;
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
+use tokio::task::id;
 use ql_core::InstanceSelection;
 use crate::store::{ModId, ModIndex};
 
@@ -32,30 +33,65 @@ pub struct ModrinthModpackManifest {
 #[derive(Serialize)]
 pub struct ModrinthDependencies {
     minecraft: String,
-    #[serde(rename = "fabric-loader")]
-    fabric_loader: String,
+    loader_Id: String,
 }
 
-pub async fn export_modpack(paths: Vec<&str>, selected_instance: InstanceSelection) {
+async fn export_modpack(mod_ids: HashSet<ModId>, instance: InstanceSelection) {
+    let index = ModIndex::load(&instance).await.unwrap();
 
-    let index = ModIndex::load(&selected_instance).await.unwrap();
-    let full_path = paths;
+    let mut urls: Vec<String> = Vec::new();
+    let mut filenames: Vec<String> = Vec::new();
 
-    let filenames: Vec<String> = full_path
+    for id in &mod_ids {
+        let is_modrinth = matches!(id, ModId::Modrinth(_));
+        if !is_modrinth {
+            continue;
+        }
+
+        let Some(config) = index.mods.get(id) else {
+            continue;
+        };
+
+        let Some(primary_file) = config.files
+            .iter()
+            .find(|file| file.primary)
+            .or_else(|| config.files.first())
+        else {
+            continue;
+        };
+
+        urls.push(primary_file.url.clone());
+        filenames.push(primary_file.filename.clone());
+    }
+
+    let paths: Vec<String> = filenames
         .iter()
-        .map(|p| Path::new(p).file_name().unwrap().to_string_lossy().into_owned())
+        .map(|name| format!("mods/{}", name))
         .collect();
 
-    let mod_ids: Vec<ModId> = filenames
-        .iter()
-        .map(|n| ModId::Modrinth(n.to_string()))
-        .collect();
+    let loader_raw =  instance.get_loader().await.unwrap().to_string();
+    let loader = match loader_raw.as_str() {
+         "Fabric" => {}
+         "Forge" => {}
+         "NeoForge" => {}
+         "Quilt" => {}
 
+        /*
+        "LiteLoader".to_string() =>  {}
+        "Rift".to_string() => {}
+        "NilLoader".to_string() => {}
+        "Orntihe" => {}
+        "Babric" => {}
+        "Legacy Fabric" => {}
+         */
+
+        _ => panic!()
+    };
 
 }
 
 
-fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modpack_summary: String, minecraft_version: String, loader_version: String, paths: Vec<&str>, sha1: Vec<&str>, sha512: Vec<&str>, links: Vec<&str>, file_size: Vec<u64>) -> Result<String, Box<dyn std::error::Error>> {
+fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modpack_summary: String,loader_type: String, minecraft_version: String, loader_version: String, paths: Vec<String>, sha1: Vec<&str>, sha512: Vec<&str>, links: Vec<String>, file_size: Vec<u64>) -> Result<String, Box<dyn std::error::Error>> {
 
     let name = modpack_name;
     let modpack_version = modpack_version;
@@ -67,6 +103,8 @@ fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modp
     let sha512 = sha512;
     let links = links;
     let file_sizes = file_size;
+    let loader_type = loader_type;
+    let loader = loader_type + loader_version.as_str();
 
 
     let files: Vec<ModrinthFileEntry> = paths
@@ -75,7 +113,7 @@ fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modp
         .zip(&sha512)
         .zip(&links)
         .zip(&file_sizes)
-        .map(|((((&path, &sha1), &sha512), &download), &file_size)| ModrinthFileEntry {
+        .map(|((((path, &sha1), &sha512), download), &file_size)| ModrinthFileEntry {
             path: path.to_string(),
             hashes: Hashes {
                 sha1: sha1.to_string(),
@@ -96,7 +134,7 @@ fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modp
         files,
         dependencies: ModrinthDependencies {
             minecraft: minecraft_version,
-            fabric_loader: loader_version,
+            loader_Id: loader,
         },
     };
 
