@@ -42,7 +42,7 @@ pub struct ModrinthDependencies {
     loader_id: String,
 }
 
-pub async fn export_modpack(modpack_name: String,modpack_version: String, modpack_summary: String, mod_ids: HashSet<ModId>, overrides: Vec<String>, instance: InstanceSelection) {
+pub async fn export_modrinth_modpack(modpack_name: String,modpack_version: String, modpack_summary: String, mod_ids: HashSet<ModId>, overrides: Vec<String>, instance: InstanceSelection) {
     let index = ModIndex::load(&instance).await.unwrap();
 
     let mut urls: Vec<String> = Vec::new();
