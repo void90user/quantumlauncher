@@ -224,8 +224,8 @@ fn write_curseforge_manifest_json(mod_id: Vec<&str>, file_id: Vec<&str>, author:
         .into_iter()
         .zip(file_id.into_iter())
         .map(|(proj_str, file_str)| CurseForgeFileEntry {
-            project_id: proj_str.parse::<u64>().expect("Invalid project ID"),
-            file_id: file_str.parse::<u64>().expect("Invalid file ID"),
+            project_id: proj_str.parse::<u64>().unwrap(),
+            file_id: file_str.parse::<u64>().unwrap(),
             required: true,
         })
         .collect();
@@ -244,6 +244,7 @@ fn write_curseforge_manifest_json(mod_id: Vec<&str>, file_id: Vec<&str>, author:
         overrides: "overrides".to_string(),
     };
 
-    let manifest_json = serde_json::to_string_pretty(&manifest).unwrap();
+    let manifest_json = serde_json::to_string_pretty(&manifest)?;
+
     Ok(manifest_json)
 }
