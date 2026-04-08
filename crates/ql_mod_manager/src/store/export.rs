@@ -216,7 +216,7 @@ pub async fn export_curseforge_modpack(modpack_name: String,modpack_version: Str
 
  */
 
-fn write_curseforge_manifest_json(mod_id: Vec<&str>, file_id: Vec<&str>, author: String, modpack_version: String, name: String, loader_id: String, minecraft_version: String, ) -> String {
+fn write_curseforge_manifest_json(mod_id: Vec<&str>, file_id: Vec<&str>, author: String, modpack_version: String, name: String, loader_id: String, minecraft_version: String, ) -> Result<String> {
 
     let primary = true;
 
@@ -245,5 +245,5 @@ fn write_curseforge_manifest_json(mod_id: Vec<&str>, file_id: Vec<&str>, author:
     };
 
     let manifest_json = serde_json::to_string_pretty(&manifest).unwrap();
-    manifest_json
+    Ok(manifest_json)
 }
