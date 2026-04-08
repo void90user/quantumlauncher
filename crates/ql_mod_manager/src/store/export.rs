@@ -4,11 +4,11 @@ use ql_core::InstanceSelection;
 use ql_core::json::VersionDetails;
 use crate::store::{ModId, ModIndex};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{PathBuf};
 use sha1::{Sha1, Digest};
 use sha2::{ Sha512};
 use hex;
-use std::io::Result;
+use std::io::{Result};
 
 
 #[derive(Serialize)]
@@ -42,7 +42,7 @@ pub struct ModrinthDependencies {
     loader_id: String,
 }
 
-pub async fn export_modrinth_modpack(modpack_name: String,modpack_version: String, modpack_summary: String, mod_ids: HashSet<ModId>, overrides: Vec<String>, instance: InstanceSelection) {
+pub async fn export_modrinth_modpack(modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides: Vec<String>, instance: InstanceSelection) {
     let index = ModIndex::load(&instance).await.unwrap();
 
     let mut urls: Vec<String> = Vec::new();
@@ -122,22 +122,16 @@ pub async fn export_modrinth_modpack(modpack_name: String,modpack_version: Strin
         .collect();
 
     let json_data = create_modrinth_index_json(modpack_name, modpack_version, modpack_summary, loader, minecraft_version.to_string(), paths, sha1s, sha512s, urls, file_sizes).unwrap();
-
-
 }
+
+
 
 fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modpack_summary: String,loader: String, minecraft_version: String, paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<String> {
 
     let name = modpack_name;
-    let modpack_version = modpack_version;
     let summary = modpack_summary;
-    let minecraft_version = minecraft_version;
-    let paths = paths;
     let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
     let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
-    let links = links;
-    let file_sizes = file_size;
-    let loader = loader;
 
 
 
@@ -146,7 +140,7 @@ fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modp
         .zip(&sha1)
         .zip(&sha512)
         .zip(&links)
-        .zip(&file_sizes)
+        .zip(&file_size)
         .map(|((((path, &sha1), &sha512), download), &file_size)| ModrinthFileEntry {
             path: path.to_string(),
             hashes: Hashes {
@@ -177,18 +171,79 @@ fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modp
     Ok(json_data)
 }
 
+#[derive(Serialize)]
+struct CurseForgeModpackManifest {
+    minecraft: CurseForgeMinecraftConfig,
+    manifest_type: String,
+    manifest_version: u32,
+    name: String,
+    version: String,
+    author: String,
+    files: Vec<CurseForgeFileEntry>,
+    overrides: String,
+}
+
+#[derive(Serialize)]
+struct CurseForgeMinecraftConfig {
+    version: String,
+    mod_loaders: Vec<CurseForgeModLoader>,
+}
+
+#[derive(Serialize)]
+struct CurseForgeModLoader {
+    id: String,
+    primary: bool,
+}
+
+#[derive(Serialize)]
+struct CurseForgeFileEntry {
+    project_id: u64,
+    file_id: u64,
+    required: bool,
+}
 /*
+pub async fn export_curseforge_modpack(modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides: Vec<String>, instance: InstanceSelection) {
 
-fn create_curseforge_mainfest(mod_id: Vec<&str>, fileID: Vec<&str>,author: String, modpack_version: String, name: String, recommended_ram: u32, lodaer_id: String, minecraft_version: String)  {
+    let details = VersionDetails::load(&instance).await.unwrap();
+    let minecraft_version = details.get_id();
+    let config = ql_core::InstanceConfigJson::read(&instance).await;
+    let loader_name = config.unwrap().mod_type.to_modrinth_str();
+    let config = ql_core::InstanceConfigJson::read(&instance).await;
+    let loader_version = config.unwrap().mod_type_info.unwrap().version;
+    let loader = loader_name.to_string() + ":" + loader_version.unwrap().as_str();
 
-    let minecraft_version = minecraft_version;
-    let author = author;
-    let modpack_version = modpack_version;
-    let name = name;
-    let recommended_ram = recommended_ram;
-    let loader_id = lodaer_id;
-    let projectID = mod_id;
-    let fileID = fileID;
 }
 
  */
+
+fn write_curseforge_manifest_json(mod_id: Vec<&str>, file_id: Vec<&str>, author: String, modpack_version: String, name: String, loader_id: String, minecraft_version: String, ) -> String {
+
+    let primary = true;
+
+    let files: Vec<CurseForgeFileEntry> = mod_id
+        .into_iter()
+        .zip(file_id.into_iter())
+        .map(|(proj_str, file_str)| CurseForgeFileEntry {
+            project_id: proj_str.parse::<u64>().expect("Invalid project ID"),
+            file_id: file_str.parse::<u64>().expect("Invalid file ID"),
+            required: true,
+        })
+        .collect();
+
+    let manifest = CurseForgeModpackManifest {
+        minecraft: CurseForgeMinecraftConfig {
+            version: minecraft_version,
+            mod_loaders: vec![CurseForgeModLoader { id: loader_id, primary }],
+        },
+        manifest_type: "minecraftModpack".to_string(),
+        manifest_version: 1,
+        name,
+        version: modpack_version,
+        author,
+        files,
+        overrides: "overrides".to_string(),
+    };
+
+    let manifest_json = serde_json::to_string_pretty(&manifest).unwrap();
+    manifest_json
+}
