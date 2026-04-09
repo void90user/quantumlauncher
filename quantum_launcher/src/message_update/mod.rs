@@ -17,7 +17,7 @@ mod recommended;
 
 use crate::config::UiWindowDecorations;
 use crate::state::{
-    GameLogMessage, InfoMessage, InstanceNotes, MenuLaunch, MenuModDescription,
+    AutoSaveKind, GameLogMessage, InfoMessage, InstanceNotes, MenuLaunch, MenuModDescription,
     ModDescriptionMessage, NotesMessage,
 };
 use crate::{
@@ -200,8 +200,7 @@ impl Launcher {
         let (p_sender, p_recv) = std::sync::mpsc::channel();
         let (j_sender, j_recv) = std::sync::mpsc::channel();
 
-        let instance = self.instance();
-        let instance_name = instance.get_name().to_owned();
+        let instance = self.instance().clone();
         debug_assert!(!instance.is_server());
 
         let optifine_unique_version =
@@ -212,7 +211,7 @@ impl Launcher {
             {
                 *optifine_unique_version
             } else {
-                block_on(OptifineUniqueVersion::get(instance))
+                block_on(OptifineUniqueVersion::get(&instance))
             };
 
         let delete_installer = if let State::InstallOptifine(MenuInstallOptifine::Choosing {
@@ -232,12 +231,11 @@ impl Launcher {
         });
 
         let installer_path = installer_path.to_owned();
-
         Task::perform(
             // OptiFine does not support servers
             // so it's safe to assume we've selected an instance.
             loaders::optifine::install(
-                instance_name,
+                instance,
                 installer_path.clone(),
                 Some(p_sender),
                 Some(j_sender),
@@ -304,7 +302,7 @@ impl Launcher {
             LauncherSettingsMessage::ClearJavaInstallsConfirm => {
                 return Task::perform(ql_instances::delete_java_installs(), |()| {
                     Message::LauncherSettings(LauncherSettingsMessage::ChangeTab(
-                        state::LauncherSettingsTab::Internal,
+                        state::LauncherSettingsTab::Game,
                     ))
                 });
             }
@@ -325,11 +323,18 @@ impl Launcher {
                 persistent.selected_remembered = t;
                 if !t {
                     persistent.selected_instance = None;
-                    persistent.selected_server = None;
+                    persistent.selected_instance_kind = None;
                 }
             }
             LauncherSettingsMessage::ToggleModUpdateChangelog(t) => {
                 self.config.c_persistent().write_mod_update_changelog = t;
+            }
+            LauncherSettingsMessage::AfterLaunchBehaviorChanged(behavior) => {
+                self.config
+                    .ui
+                    .get_or_insert_with(UiSettings::default)
+                    .after_game_opens = behavior;
+                self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
             LauncherSettingsMessage::DefaultMinecraftWidthChanged(input) => {
                 self.config.c_global().window_width = input.trim().parse::<u32>().ok();
@@ -404,7 +409,7 @@ impl Launcher {
             msg1: "delete auto-installed Java files".to_owned(),
             msg2: "They will get reinstalled automatically as needed".to_owned(),
             yes: LauncherSettingsMessage::ClearJavaInstallsConfirm.into(),
-            no: LauncherSettingsMessage::ChangeTab(state::LauncherSettingsTab::Internal).into(),
+            no: LauncherSettingsMessage::ChangeTab(state::LauncherSettingsTab::Game).into(),
         }
     }
 

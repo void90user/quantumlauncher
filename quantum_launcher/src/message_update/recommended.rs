@@ -1,6 +1,5 @@
 use iced::{Task, futures::executor::block_on};
-use std::collections::HashSet;
-use ql_core::{InstanceSelection, IntoStringError, JsonFileError, json::InstanceConfigJson};
+use ql_core::{Instance, IntoStringError, JsonFileError, json::InstanceConfigJson};
 use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
 
 use crate::state::{
@@ -151,7 +150,7 @@ impl Launcher {
 impl MenuRecommendedMods {
     pub fn get_config(
         &self,
-        instance: &InstanceSelection,
+        instance: &Instance,
     ) -> Result<InstanceConfigJson, JsonFileError> {
         if let MenuRecommendedMods::Loaded { config, .. }
         | MenuRecommendedMods::Loading { config, .. } = self
