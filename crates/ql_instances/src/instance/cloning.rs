@@ -1,15 +1,17 @@
-use ql_core::{file_utils, InstanceSelection, IoError};
+use ql_core::{Instance, IoError, file_utils};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use thiserror::Error;
 
-const PKG_ERR_PREFIX: &str = "while cloning instance:\n";
+const ERR_PREFIX: &str = "while cloning instance:\n";
 #[derive(Debug, Error)]
 pub enum InstanceCloneError {
-    #[error("{PKG_ERR_PREFIX}failed to execute recursive directory clone wrapper: {0:?}")]
+    #[error("{ERR_PREFIX}failed to execute recursive directory clone wrapper: {0:?}")]
     Io(IoError),
-    #[error("{PKG_ERR_PREFIX}directory already exists: {0:?}")]
+    #[error("{ERR_PREFIX}directory already exists: {0:?}")]
     DirectoryExists(PathBuf),
+    #[error("{ERR_PREFIX}parent directory not found: {0:?}")]
+    ParentNotFound(PathBuf),
 }
 
 impl From<IoError> for InstanceCloneError {
@@ -19,29 +21,23 @@ impl From<IoError> for InstanceCloneError {
 }
 
 pub async fn clone_instance(
-    instance: InstanceSelection,
+    instance: Instance,
     exceptions: HashSet<String>,
-) -> Result<InstanceSelection, InstanceCloneError> {
-    let current_instance_name = instance.get_name();
-    let current_instance_type = instance.is_server();
-    let new_instance_name = format!("{current_instance_name} (copy)");
+) -> Result<Instance, InstanceCloneError> {
+    let new_instance_name = format!("{} (copy)", instance.name);
 
-    let current_instance = instance.get_instance_path();
-    let new_instance = current_instance.parent().unwrap().join(&new_instance_name);
+    let src_path = instance.get_instance_path();
+    let dst_path = src_path
+        .parent()
+        .ok_or_else(|| InstanceCloneError::ParentNotFound(src_path.clone()))?
+        .join(&new_instance_name);
 
-    if new_instance.is_dir() {
-        return Err(InstanceCloneError::DirectoryExists(new_instance));
+    if dst_path.is_dir() {
+        return Err(InstanceCloneError::DirectoryExists(dst_path));
     }
 
-    let exceptions: Vec<PathBuf> = exceptions
-        .iter()
-        .map(|n| current_instance.join(n))
-        .collect();
+    let exceptions: Vec<PathBuf> = exceptions.iter().map(|n| src_path.join(n)).collect();
+    file_utils::copy_dir_recursive_ext(&src_path, &dst_path, &exceptions).await?;
 
-    file_utils::copy_dir_recursive_ext(&current_instance, &new_instance, &exceptions).await?;
-
-    Ok(InstanceSelection::new(
-        &new_instance_name,
-        current_instance_type,
-    ))
+    Ok(Instance::new(&new_instance_name, instance.kind))
 }

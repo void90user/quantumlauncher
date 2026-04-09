@@ -15,7 +15,7 @@ use crate::{
     },
     state::{
         EditInstanceMessage, LaunchModal, LaunchTab, Launcher, MainMenuMessage, MenuLaunch,
-        Message, SidebarMessage, State,
+        Message, PackageInstanceMessage, SidebarMessage, State,
     },
     stylesheet::{
         color::Color,
@@ -229,44 +229,50 @@ impl Launcher {
             return Some(offset(ctxbox(new_folder_b).width(120), *x, *y));
         };
 
+        let select_and2 = |inst, a, b| {
+            Message::Multiple(vec![MainMenuMessage::InstanceSelected(inst).into(), a, b])
+        };
+        let select_and = |inst, a| select_and2(inst, a, Message::Nothing);
+
+        let rename_msg = move || match inst {
+            SidebarSelection::Instance(inst) => select_and2(
+                inst.clone(),
+                MainMenuMessage::ChangeTab(LaunchTab::Edit).into(),
+                EditInstanceMessage::RenameToggle.into(),
+            ),
+            SidebarSelection::Folder(folder_id) => MainMenuMessage::Modal(Some(
+                LaunchModal::SRenamingFolder(*folder_id, name.to_string(), false),
+            ))
+            .into(),
+        };
+
+        let specific: Element = match inst {
+            SidebarSelection::Instance(inst) => column![
+                ctx_button(icons::file_zip_s(CTXI_SIZE), "Export").on_press(select_and(
+                    inst.clone(),
+                    PackageInstanceMessage::ExportOpen.into(),
+                )),
+                ctx_button(icons::new_s(CTXI_SIZE), "Clone").on_press(select_and(
+                    inst.clone(),
+                    PackageInstanceMessage::CloneOpen.into(),
+                )),
+            ]
+            .into(),
+            SidebarSelection::Folder(id) => ctx_button(icons::bin_s(CTXI_SIZE), "Delete Folder")
+                .on_press_with(|| SidebarMessage::DeleteFolder(*id).into())
+                .into(),
+        };
+
         Some(offset(
-            ctxbox(
-                column![
-                    new_folder_b,
-                    widget::Space::with_height(5),
-                    widget::horizontal_rule(2),
-                    widget::Space::with_height(5),
-                    // ctx_button(icons::file_s(CTXI_SIZE), "Change Icon"),
-                    ctx_button(icons::edit_s(CTXI_SIZE), "Rename").on_press_with(
-                        move || match inst {
-                            SidebarSelection::Instance(name, kind) => {
-                                Message::Multiple(vec![
-                                    MainMenuMessage::InstanceSelected(Instance::new(name, *kind))
-                                        .into(),
-                                    MainMenuMessage::ChangeTab(LaunchTab::Edit).into(),
-                                    EditInstanceMessage::RenameToggle.into(),
-                                ])
-                            }
-                            SidebarSelection::Folder(folder_id) => {
-                                MainMenuMessage::Modal(Some(LaunchModal::SRenamingFolder(
-                                    *folder_id,
-                                    name.to_string(),
-                                    false,
-                                )))
-                                .into()
-                            }
-                        }
-                    ),
-                ]
-                .push_maybe(if let SidebarSelection::Folder(id) = inst {
-                    Some(
-                        ctx_button(icons::bin_s(CTXI_SIZE), "Delete Folder")
-                            .on_press_with(|| SidebarMessage::DeleteFolder(*id).into()),
-                    )
-                } else {
-                    None
-                }),
-            )
+            ctxbox(column![
+                new_folder_b,
+                widget::Space::with_height(5),
+                widget::horizontal_rule(2),
+                widget::Space::with_height(5),
+                // ctx_button(icons::file_s(CTXI_SIZE), "Change Icon"),
+                ctx_button(icons::edit_s(CTXI_SIZE), "Rename").on_press_with(rename_msg),
+                specific
+            ])
             .width(150),
             *x,
             *y,

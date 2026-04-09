@@ -40,6 +40,15 @@ clap = { version = "4", features = ["help", "derive"] }
 zip = { version = "=7.2", default-features = false, features = ["deflate"] } # MSRV
 
 walkdir = "2.3"
+image = { version = "0.24", default-features = false, features = [
+    # Web formats are enough
+    #"avif",
+    "gif",
+    "ico",
+    "jpeg",
+    "png",
+    "webp",
+] }
 tempfile = "3"
 regex = "1"
 

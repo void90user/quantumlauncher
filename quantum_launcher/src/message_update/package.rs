@@ -1,8 +1,8 @@
 use iced::Task;
-use ql_core::{file_utils::DirItem, IntoIoError, IntoStringError};
+use ql_core::{IntoIoError, IntoStringError, file_utils::DirItem};
 
 use crate::state::{
-    Launcher, MenuExportInstance, Message, PackageInstanceMessage, ProgressBar, State,
+    InfoMessage, Launcher, MenuExportInstance, Message, PackageInstanceMessage, ProgressBar, State,
 };
 
 /// Files/folders in `.minecraft` that are commonly large and
@@ -101,15 +101,16 @@ impl Launcher {
                     progress: None,
                     is_exporting: true,
                 });
-                return Task::perform(
-                    ql_core::file_utils::read_filenames_from_dir(
-                        self.selected_instance
-                            .clone()
-                            .unwrap()
-                            .get_dot_minecraft_path(),
-                    ),
-                    |n| PackageInstanceMessage::ListLoaded(n.strerr()).into(),
-                );
+
+                let path = self
+                    .selected_instance
+                    .clone()
+                    .unwrap()
+                    .get_dot_minecraft_path();
+
+                return Task::perform(ql_core::file_utils::read_filenames_from_dir(path), |n| {
+                    PackageInstanceMessage::ListLoaded(n.strerr()).into()
+                });
             }
             PackageInstanceMessage::CloneOpen => {
                 self.state = State::ExportInstance(MenuExportInstance {
@@ -133,7 +134,7 @@ impl Launcher {
                         if let Err(err) = std::fs::write(&path, bytes).path(path) {
                             self.set_error(err);
                         } else {
-                            return self.go_to_main_menu_with_message(None::<String>);
+                            return self.go_to_main_menu(None);
                         }
                     }
                 }
@@ -142,7 +143,8 @@ impl Launcher {
             PackageInstanceMessage::CloneFinished(res) => match res {
                 Ok(instance) => {
                     self.selected_instance = Some(instance);
-                    return self.go_to_main_menu_with_message(Some("Instance has been copied!"));
+                    return self
+                        .go_to_main_menu(Some(InfoMessage::success("Instance has been copied!")));
                 }
                 Err(e) => self.set_error(e),
             },

@@ -308,6 +308,31 @@ pub fn create_symlink(src: &Path, dest: &Path) -> Result<(), IoError> {
     }
 }
 
+/// Creates a symbolic link (i.e. the file at `dest` "points" to `src`,
+/// accessing `dest` will actually access `src`). Async version.
+///
+/// # Errors
+/// (depending on platform):
+/// - If `dest` already exists
+/// - If `src` doesn't exist
+/// - If user doesn't have permission for `src`
+/// - If the path is invalid (part of path is not a directory for example)
+/// - Other niche stuff (Read only filesystem, Running out of disk space)
+pub async fn create_symlink_async(src: &Path, dest: &Path) -> Result<(), IoError> {
+    #[cfg(unix)]
+    {
+        tokio::fs::symlink(src, dest).await.path(src)
+    }
+    #[cfg(windows)]
+    {
+        if src.is_dir() {
+            tokio::fs::symlink_dir(src, dest).await.path(src)
+        } else {
+            tokio::fs::symlink_file(src, dest).await.path(src)
+        }
+    }
+}
+
 /// Recursively copies the contents of
 /// the `src` dir to the `dst` dir.
 ///

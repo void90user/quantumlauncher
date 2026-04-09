@@ -1,17 +1,15 @@
-use std::fs;
 use std::path::Path;
-use crate::LAUNCHER_DIR;
 
-async fn create_hard_links(links: Vec<(&str, &str)>) -> std::io::Result<()> {
+use crate::{IoError, file_utils::create_symlink_async};
+
+async fn create_hard_links(links: Vec<(&Path, &Path)>) -> Result<(), IoError> {
     for (from, to) in links {
-        fs::hard_link(from, to)?;
+        create_symlink_async(from, to).await?;
     }
     Ok(())
 }
 
-
 pub async fn file_linking() {
-
     /*
     TODO: This might help you do the frontend
 
@@ -30,16 +28,17 @@ pub async fn file_linking() {
 
      */
 
-    let sources: Vec<&str> = vec![] ;
-    let destinations: Vec<&str> = vec![];
+    let sources: Vec<&Path> = vec![];
+    let destinations: Vec<&Path> = vec![];
     // TODO: THESE NEED TO BE ABSOLUTE PATHS LIKE: sources -> ("SOURCE/FILE/PATH.zip", "SOURCE/FILE/PATH2.zip") dest -> ("DEST/FILE/PATH.zip", "DEST/FILE/PATH2.zip")
 
-    let links: Vec<(&str, &str)> = sources.iter()
+    let links: Vec<(&Path, &Path)> = sources
+        .iter()
         .zip(destinations.iter())
         .map(|(&src, &dst)| (src, dst))
         .collect();
 
-
-    create_hard_links(links).await.expect("Unable to create links");
-
+    create_hard_links(links)
+        .await
+        .expect("Unable to create links");
 }

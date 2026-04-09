@@ -1,5 +1,5 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceKind, IntoIoError, IntoStringError, err, file_utils::DirItem, info};
+use ql_core::{InstanceKind, IntoStringError, err, info};
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -11,8 +11,8 @@ use crate::launcher_update::UpdateCheckInfo;
 use crate::{
     state::{
         AutoSaveKind, CustomJarState, DirWatcher, GameProcess, InfoMessage, LaunchTab, Launcher,
-        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense,
-        MenuWelcome, Message, ProgressBar, State, dir_watch, get_entries,
+        LauncherSettingsMessage, ManageModsMessage, MenuLaunch, MenuLicense, MenuWelcome, Message,
+        State, dir_watch, get_entries,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -23,9 +23,11 @@ impl Launcher {
             Message::Nothing | Message::CoreCleanComplete(Ok(())) => {}
             Message::Error(err) => self.set_error(err),
             Message::Multiple(msgs) => {
-                let mut task = Task::none();
+                let mut task = Task::batch([]);
                 for msg in msgs {
-                    task = task.chain(self.update(msg));
+                    // Work around default iced behaviour
+                    // of cancelling all tasks if a single one is `none`
+                    task = task.chain(Task::batch([self.update(msg)]));
                 }
                 return task;
             }
@@ -279,103 +281,6 @@ impl Launcher {
                 self.log_scroll = lines;
             }
 
-            Message::ExportInstanceOpen => {
-                self.state = State::ExportInstance(MenuExportInstance {
-                    entries: None,
-                    progress: None,
-                });
-                return Task::perform(
-                    ql_core::file_utils::read_filenames_from_dir(
-                        self.selected_instance
-                            .clone()
-                            .unwrap()
-                            .get_dot_minecraft_path(),
-                    ),
-                    |n| Message::ExportInstanceLoaded(n.strerr()),
-                );
-            }
-            Message::ExportInstanceLoaded(res) => {
-                let mut entries: Vec<(DirItem, bool)> = match res {
-                    Ok(n) => n
-                        .into_iter()
-                        .map(|n| {
-                            let enabled = !(n.name == ".fabric"
-                                || n.name == "logs"
-                                || n.name == "command_history.txt"
-                                || n.name == "realms_persistence.json"
-                                || n.name == "debug"
-                                || n.name == ".cache"
-                                // Common mods...
-                                || n.name == "authlib-injector.log"
-                                || n.name == "easy_npc"
-                                || n.name == "CustomSkinLoader"
-                                || n.name == ".bobby");
-                            (n, enabled)
-                        })
-                        .filter(|(n, _)| {
-                            !(n.name == "mod_index.json" || n.name == "launcher_profiles.json")
-                        })
-                        .collect(),
-                    Err(err) => {
-                        self.set_error(err);
-                        return Task::none();
-                    }
-                };
-                entries.sort_by(|(a, _), (b, _)| {
-                    // Folders before files, and then sorted alphabetically
-                    a.is_file.cmp(&b.is_file).then_with(|| a.name.cmp(&b.name))
-                });
-                if let State::ExportInstance(menu) = &mut self.state {
-                    menu.entries = Some(entries);
-                }
-            }
-            Message::ExportInstanceToggleItem(idx, t) => {
-                if let State::ExportInstance(MenuExportInstance {
-                    entries: Some(entries),
-                    ..
-                }) = &mut self.state
-                {
-                    if let Some((_, b)) = entries.get_mut(idx) {
-                        *b = t;
-                    }
-                }
-            }
-            Message::ExportInstanceStart => {
-                if let State::ExportInstance(MenuExportInstance {
-                    entries: Some(entries),
-                    progress,
-                }) = &mut self.state
-                {
-                    let (send, recv) = std::sync::mpsc::channel();
-                    *progress = Some(ProgressBar::with_recv(recv));
-
-                    let exceptions = entries
-                        .iter()
-                        .filter_map(|(n, b)| (!b).then_some(format!(".minecraft/{}", n.name)))
-                        .collect();
-
-                    return Task::perform(
-                        ql_packager::export_instance(
-                            self.selected_instance.clone().unwrap(),
-                            exceptions,
-                            Some(send),
-                        ),
-                        |n| Message::ExportInstanceFinished(n.strerr()),
-                    );
-                }
-            }
-            Message::ExportInstanceFinished(res) => match res {
-                Ok(bytes) => {
-                    if let Some(path) = rfd::FileDialog::new().save_file() {
-                        if let Err(err) = std::fs::write(&path, bytes).path(path) {
-                            self.set_error(err);
-                        } else {
-                            return self.go_to_main_menu(None);
-                        }
-                    }
-                }
-                Err(err) => self.set_error(err),
-            },
             Message::LicenseOpen => {
                 self.go_to_licenses_menu();
             }

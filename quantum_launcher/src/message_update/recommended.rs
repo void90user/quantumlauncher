@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use iced::{Task, futures::executor::block_on};
 use ql_core::{Instance, IntoStringError, JsonFileError, json::InstanceConfigJson};
 use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
@@ -27,11 +29,10 @@ impl Launcher {
                             return Task::none();
                         }
                     };
-                    let filters: HashSet<_> =
-                        ql_mod_manager::store::recommended::Category::ALL
-                            .iter()
-                            .copied()
-                            .collect();
+                    let filters: HashSet<_> = ql_mod_manager::store::recommended::Category::ALL
+                        .iter()
+                        .copied()
+                        .collect();
 
                     self.state = State::RecommendedMods(if mods.is_empty() {
                         MenuRecommendedMods::NotSupported
@@ -69,8 +70,9 @@ impl Launcher {
                 }
             }
             RecommendedModMessage::Download => {
-                if let State::RecommendedMods(MenuRecommendedMods::Loaded { mods, config, .. }) =
-                    &mut self.state
+                if let State::RecommendedMods(MenuRecommendedMods::Loaded {
+                    mods, config, ..
+                }) = &mut self.state
                 {
                     let (sender, receiver) = std::sync::mpsc::channel();
 
@@ -148,10 +150,7 @@ impl Launcher {
 }
 
 impl MenuRecommendedMods {
-    pub fn get_config(
-        &self,
-        instance: &Instance,
-    ) -> Result<InstanceConfigJson, JsonFileError> {
+    pub fn get_config(&self, instance: &Instance) -> Result<InstanceConfigJson, JsonFileError> {
         if let MenuRecommendedMods::Loaded { config, .. }
         | MenuRecommendedMods::Loading { config, .. } = self
         {

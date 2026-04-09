@@ -415,7 +415,7 @@ pub enum PackageInstanceMessage {
     ExportOpen,
     CloneOpen,
     ExportFinished(Res<Vec<u8>>),
-    CloneFinished(Res<InstanceSelection>),
+    CloneFinished(Res<Instance>),
 }
 
 #[derive(Debug, Clone)]

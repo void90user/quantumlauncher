@@ -399,20 +399,17 @@ impl Launcher {
             return Ok(Task::none());
         }
 
-        let old_name = menu.old_instance_name.clone();
         menu.old_instance_name = Arc::from(sanitized_name.as_str());
         std::fs::rename(&old_path, &new_path)
             .path(&old_path)
             .strerr()?;
 
         let mut instance = self.selected_instance.clone().unwrap();
+        let old_instance = instance.clone();
         instance.name = Arc::from(sanitized_name.as_str());
 
         if let Some(s) = &mut self.config.sidebar {
-            s.rename(
-                &SidebarSelection::Instance(old_name, instance.kind),
-                &sanitized_name,
-            );
+            s.rename(&SidebarSelection::Instance(old_instance), &sanitized_name);
         }
 
         Ok(Task::perform(get_entries(self.instance().kind), move |n| {

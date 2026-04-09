@@ -1,5 +1,4 @@
 use iced::Task;
-use ql_core::Instance;
 
 use crate::{
     config::sidebar::SidebarSelection,
@@ -17,12 +16,12 @@ impl Launcher {
                 // UX tweak: dragging instance to tab will open tab for that instance
                 if let State::Launch(MenuLaunch { modal, .. }) = &mut self.state {
                     if let Some(LaunchModal::SDragging {
-                        being_dragged: SidebarSelection::Instance(name, kind),
+                        being_dragged: SidebarSelection::Instance(inst),
                         ..
                     }) = modal
                     {
                         if self.selected_instance.is_none() {
-                            self.selected_instance = Some(Instance::new(name, *kind));
+                            self.selected_instance = Some(inst.clone());
                         }
                     }
                     *modal = None;

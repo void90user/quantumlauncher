@@ -75,30 +75,6 @@ impl ImageState {
         let Some(url) = url else {
             return sized!(widget::Column::new(), w, h);
         };
-        if let Some(handle) = self.bitmap.get(url) {
-            let mut e = widget::image(handle.clone()).content_fit(iced::ContentFit::ScaleDown);
-            if let Some(s) = w {
-                e = e.width(s);
-            }
-            if let Some(s) = h {
-                e = e.height(s);
-            }
-            e.into()
-        } else if let Some(handle) = self.svg.get(url) {
-            let mut e = widget::svg(handle.clone());
-            if let Some(s) = w {
-                e = e.width(s);
-            }
-            if let Some(s) = h {
-                e = e.height(s);
-            }
-            e.into()
-        } else {
-            let mut to_load = self.to_load.lock().unwrap();
-            to_load.insert(url.to_owned());
-            widget::Column::new().into()
-        }
-    }
 
         let is_small = |n| n <= image::ICON_SIZE_F32;
         let is_icon = w.is_some_and(is_small) && h.is_some_and(is_small);
