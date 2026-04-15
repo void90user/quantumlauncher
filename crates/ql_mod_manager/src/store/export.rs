@@ -79,7 +79,7 @@ pub async fn export_modrinth_modpack(modpack_name: String,modpack_version: Strin
     let details = VersionDetails::load(&instance).await.unwrap();
     let minecraft_version = details.get_id();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = config.unwrap().mod_type.to_modrinth_str();
+    let loader_name = config.unwrap().mod_type.to_modrinth_str();  // TODO: INCORRECT: Waiting for change
     let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
     let loader = loader_name.to_string() + ":" + loader_version.unwrap().as_str();
@@ -171,6 +171,8 @@ fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modp
     Ok(json_data)
 }
 
+
+/*
 #[derive(Serialize)]
 struct CurseForgeModpackManifest {
     minecraft: CurseForgeMinecraftConfig,
@@ -201,20 +203,22 @@ struct CurseForgeFileEntry {
     file_id: u64,
     required: bool,
 }
-/*
-pub async fn export_curseforge_modpack(modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides: Vec<String>, instance: InstanceSelection) {
+
+pub async fn export_curseforge_modpack(author: String, modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides: Vec<String>, instance: InstanceSelection) {
 
     let details = VersionDetails::load(&instance).await.unwrap();
-    let minecraft_version = details.get_id();
+    let minecraft_version = details.get_id().to_string();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = config.unwrap().mod_type.to_modrinth_str();
+    let loader_name = config.unwrap().mod_type.to_modrinth_str(); // formating changes needed
     let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
     let loader = loader_name.to_string() + ":" + loader_version.unwrap().as_str();
 
+
+     let json_data = write_curseforge_manifest_json(mod_ids, FILEID, author, modpack_version, modpack_name, loader, minecraft_version)
+
 }
 
- */
 
 fn write_curseforge_manifest_json(mod_id: Vec<&str>, file_id: Vec<&str>, author: String, modpack_version: String, name: String, loader_id: String, minecraft_version: String, ) -> Result<String> {
 
@@ -248,3 +252,5 @@ fn write_curseforge_manifest_json(mod_id: Vec<&str>, file_id: Vec<&str>, author:
 
     Ok(manifest_json)
 }
+
+ */
