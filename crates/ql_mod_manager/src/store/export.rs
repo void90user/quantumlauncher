@@ -2,17 +2,15 @@ use std::collections::HashSet;
 use serde::Serialize;
 use ql_core::InstanceSelection;
 use ql_core::json::VersionDetails;
-use crate::store::{ModId, ModIndex, PackError};
+use crate::store::{ModId, ModIndex};
 use std::fs;
 use std::path::{PathBuf};
 use sha1::{Sha1, Digest};
 use sha2::{ Sha512};
 use hex;
 use std::io::{Result};
-
 use async_zip::tokio::write::ZipFileWriter;
 use async_zip::{Compression, ZipEntryBuilder};
-use tokio::io::AsyncReadExt;
 use tokio::fs::read;
 
 
@@ -47,7 +45,7 @@ pub struct ModrinthDependencies {
     loader_id: String,
 }
 
-pub async fn export_modrinth_modpack(modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides: Vec<String>, instance: InstanceSelection) {
+pub async fn export_modrinth_modpack(modpack_path: String, modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides_full_path: Vec<String>, instance: InstanceSelection)  {
     let index = ModIndex::load(&instance).await.unwrap();
 
     let mut urls: Vec<String> = Vec::new();
@@ -127,9 +125,22 @@ pub async fn export_modrinth_modpack(modpack_name: String,modpack_version: Strin
         .collect();
 
     let json_data = create_modrinth_index_json(modpack_name, modpack_version, modpack_summary, loader, minecraft_version.to_string(), paths, sha1s, sha512s, urls, file_sizes).unwrap();
+
+    let zip_path= modpack_path + "/" + modpack_file_name.as_str() + ".mcmrpack";
+
+    let result: Vec<(String, String)> = overrides_full_path
+        .iter()
+        .map(|full| {
+            let path = std::path::Path::new(full);
+            let relative = path.strip_prefix(std::path::Path::new(&instance.get_dot_minecraft_path().to_str().unwrap())).unwrap_or(path);
+            (full.clone(), relative.to_string_lossy().into())
+        })
+        .collect();
+
+    let overrides = result.clone();
+
+    package_modrinth_pack(json_data, zip_path, overrides).unwrap();
 }
-
-
 
 fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modpack_summary: String,loader: String, minecraft_version: String, paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<String> {
 
@@ -177,14 +188,7 @@ fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modp
 }
 
 #[tokio::main]
-async fn package_modrinth_pack(json_data: String, zip_path: String, overrides: Vec<(&str, &str)>) -> Result<()> {
-    /*
-    let files_to_add = vec![
-        ("path/to/example_folder/config.txt", "example_folder/config.txt"),
-        ("path/to/example_file.json", "example_file.json"),
-    ];
-     /// REF
-     */
+async fn package_modrinth_pack(json_data: String, zip_path: String, overrides: Vec<(String, String)>) -> Result<()> {
 
     let parent_dir = std::path::Path::new(&zip_path).parent().unwrap();
     tokio::fs::create_dir_all(parent_dir).await?;
@@ -214,8 +218,6 @@ async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
     writer.write_entry_whole(builder, &data).await.unwrap();
     Ok(())
 }
-
-
 
 /*
 TODO: CurseForge format
