@@ -173,6 +173,8 @@ fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modp
 
 
 /*
+TODO: CurseForge format
+
 #[derive(Serialize)]
 struct CurseForgeModpackManifest {
     minecraft: CurseForgeMinecraftConfig,
