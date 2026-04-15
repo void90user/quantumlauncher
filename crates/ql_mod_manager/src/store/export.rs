@@ -2,13 +2,18 @@ use std::collections::HashSet;
 use serde::Serialize;
 use ql_core::InstanceSelection;
 use ql_core::json::VersionDetails;
-use crate::store::{ModId, ModIndex};
+use crate::store::{ModId, ModIndex, PackError};
 use std::fs;
 use std::path::{PathBuf};
 use sha1::{Sha1, Digest};
 use sha2::{ Sha512};
 use hex;
 use std::io::{Result};
+
+use async_zip::tokio::write::ZipFileWriter;
+use async_zip::{Compression, ZipEntryBuilder};
+use tokio::io::AsyncReadExt;
+use tokio::fs::read;
 
 
 #[derive(Serialize)]
@@ -170,6 +175,46 @@ fn create_modrinth_index_json(modpack_name: String,modpack_version: String, modp
 
     Ok(json_data)
 }
+
+#[tokio::main]
+async fn package_modrinth_pack(json_data: String, zip_path: String, overrides: Vec<(&str, &str)>) -> Result<()> {
+    /*
+    let files_to_add = vec![
+        ("path/to/example_folder/config.txt", "example_folder/config.txt"),
+        ("path/to/example_file.json", "example_file.json"),
+    ];
+     /// REF
+     */
+
+    let parent_dir = std::path::Path::new(&zip_path).parent().unwrap();
+    tokio::fs::create_dir_all(parent_dir).await?;
+
+    let output_file = tokio::fs::File::create(&zip_path).await?;
+    let mut writer = ZipFileWriter::with_tokio(output_file);
+
+    for (full_path, relative_path) in &overrides {
+        let in_zip_path = format!("overrides/{}", relative_path);
+        add_file_to_zip(&mut writer, full_path, &in_zip_path).await?;
+    }
+
+    let json_builder = ZipEntryBuilder::new("modrinth.index".into(), Compression::Deflate);
+    writer.write_entry_whole(json_builder, json_data.as_bytes()).await.unwrap();
+
+    writer.close().await.unwrap();
+    Ok(())
+}
+
+async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
+    writer: &mut ZipFileWriter<W>,
+    original_file_path: &str,
+    zip_relative_path: &str,
+) -> Result<()> {
+    let data = read(original_file_path).await?;
+    let builder = ZipEntryBuilder::new(zip_relative_path.into(), Compression::Deflate);
+    writer.write_entry_whole(builder, &data).await.unwrap();
+    Ok(())
+}
+
 
 
 /*
