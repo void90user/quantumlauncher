@@ -43,6 +43,19 @@ pub struct ModrinthModpackManifest {
     dependencies: Value,
 }
 
+#[derive(Serialize)]
+pub struct QlModpackManifest {
+    format_version: u8,
+    minecraft_version: String,
+    loader_id: Value,
+    version_id: String,
+    name: String,
+    author: String,
+    summary: String,
+    icon: Vec<String>,
+    files: Vec<Format1FileEntry>,
+}
+
 pub async fn export_modrinth_modpack(modpack_path: String, modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides_full_path: Vec<String>, instance: InstanceSelection)  {
     let index = ModIndex::load(&instance).await.unwrap();
 
@@ -139,28 +152,81 @@ pub async fn export_modrinth_modpack(modpack_path: String, modpack_name: String,
     package_format1_pack(json_data, zip_path, overrides).unwrap();
 }
 
-fn create_modrinth_index_json(format_version: u8, name: String,version_id: String, summary: String,loader_id: String, loader_version: String, minecraft_version: String, paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<String> {
+/*
+pub async fn export_qlmp_modpack(author: String, icon: Vec<String>, modpack_path: String, modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides_full_path: Vec<String>, instance: InstanceSelection)  {
 
-    let mut dependencies = Map::new();
-    dependencies.insert("minecraft".to_string(), Value::String(minecraft_version));
-    dependencies.insert(loader_id.to_string(), Value::String(loader_version));
+    let mut urls: Vec<String> = Vec::new();
+    let mut filenames: Vec<Format1FileEntry> = Vec::new();
 
-    let files: Vec<Format1FileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
 
-    let manifest = ModrinthModpackManifest {
-        format_version,
-        game: "minecraft".to_string(),
-        version_id,
-        name,
-        summary,
-        files,
-        dependencies: Value::Object(dependencies),
-    };
+    let details = VersionDetails::load(&instance).await.unwrap();
+    let minecraft_version = details.get_id();
+    let config = ql_core::InstanceConfigJson::read(&instance).await;
+    let loader_name = config.unwrap().mod_type.to_modrinth_str();  // TODO: INCORRECT: Waiting for change
+    let config = ql_core::InstanceConfigJson::read(&instance).await;
+    let loader_version = config.unwrap().mod_type_info.unwrap().version;
 
-    let json_data = serde_json::to_string_pretty(&manifest)?;
+    let minecraft_path = instance.get_dot_minecraft_path();
 
-    Ok(json_data)
+    let paths: Vec<String> = filenames
+        .iter()
+        .map(|name| format!("mods/{}", name))
+        .collect();
+
+    let full_path: Vec<PathBuf> = paths
+        .iter()
+        .map(|rel_path| minecraft_path.join(rel_path))
+        .collect();
+
+
+    let file_sizes: Vec<u64> = full_path
+        .iter()
+        .map(|path| fs::metadata(path).map(|meta| meta.len()).unwrap_or(0))
+        .collect();
+
+
+    let sha1s: Vec<String> = full_path
+        .clone()
+        .into_iter()
+        .map(|path| {
+            let data = fs::read(path).unwrap();
+            let mut hasher = Sha1::new();
+            hasher.update(&data);
+            let hash = hasher.finalize();
+            hex::encode(hash)
+        })
+        .collect();
+
+
+    let sha512s: Vec<String> = full_path
+        .into_iter()
+        .map(|path| {
+            let data = fs::read(path).unwrap();
+            let mut hasher = Sha512::new();
+            hasher.update(&data);
+            let hash = hasher.finalize();
+            hex::encode(hash)
+        })
+        .collect();
+
+    let json_data = create_qlmp_index_json(1, minecraft_version, loader_name, loader_version, modpack_version, modpack_name, author, modpack_summary, icon, paths, sha1s, sha512s, urls, file_sizes).unwrap();
+
+    let zip_path= modpack_path + "/" + modpack_file_name.as_str() + ".qlmp";
+
+    let result: Vec<(String, String)> = overrides_full_path
+        .iter()
+        .map(|full| {
+            let path = std::path::Path::new(full);
+            let relative = path.strip_prefix(std::path::Path::new(&instance.get_dot_minecraft_path().to_str().unwrap())).unwrap_or(path);
+            (full.clone(), relative.to_string_lossy().into())
+        })
+        .collect();
+
+    let overrides = result.clone();
+
+    package_format1_pack(json_data, zip_path, overrides).unwrap();
 }
+ */
 
 #[tokio::main]
 async fn package_format1_pack(json_data: String, zip_path: String, overrides: Vec<(String, String)>) -> Result<()> {
@@ -194,45 +260,28 @@ async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
     Ok(())
 }
 
-fn format_1_file_entry(paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<Vec<Format1FileEntry>> {
+fn create_modrinth_index_json(format_version: u8, name: String,version_id: String, summary: String,loader_id: String, loader_version: String, minecraft_version: String, paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<String> {
 
-    let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
-    let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
+    let mut dependencies = Map::new();
+    dependencies.insert("minecraft".to_string(), Value::String(minecraft_version));
+    dependencies.insert(loader_id.to_string(), Value::String(loader_version));
 
-    let files: Vec<Format1FileEntry> = paths
-        .iter()
-        .zip(&sha1)
-        .zip(&sha512)
-        .zip(&links)
-        .zip(&file_size)
-        .map(|((((path, sha1), sha512), download), &file_size)| Format1FileEntry {
-            path: path.to_string(),
-            hashes: Hashes {
-                sha1: sha1.to_string(),
-                sha512: sha512.to_string(),
-            },
-            downloads: vec![download.to_string()],
-            file_size,
-        })
-        .collect();
+    let files: Vec<Format1FileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
 
-    Ok(files)
+    let manifest = ModrinthModpackManifest {
+        format_version,
+        game: "minecraft".to_string(),
+        version_id,
+        name,
+        summary,
+        files,
+        dependencies: Value::Object(dependencies),
+    };
+
+    let json_data = serde_json::to_string_pretty(&manifest)?;
+
+    Ok(json_data)
 }
-
-#[derive(Serialize)]
-pub struct QlModpackManifest {
-    format_version: u8,
-    minecraft_version: String,
-    loader_id: Value,
-    version_id: String,
-    name: String,
-    author: String,
-    summary: String,
-    icon: Vec<String>,
-    files: Vec<Format1FileEntry>,
-
-}
-
 
 fn create_qlmp_index_json(format_version: u8, minecraft_version: String, loader_id: String, loader_version: String, version_id: String, name: String, author: String, summary: String, icon: Vec<String>, paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<String> {
 
@@ -256,6 +305,31 @@ fn create_qlmp_index_json(format_version: u8, minecraft_version: String, loader_
     let json_data = serde_json::to_string_pretty(&manifest)?;
 
     Ok(json_data)
+}
+
+fn format_1_file_entry(paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<Vec<Format1FileEntry>> {
+
+    let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
+    let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
+
+    let files: Vec<Format1FileEntry> = paths
+        .iter()
+        .zip(&sha1)
+        .zip(&sha512)
+        .zip(&links)
+        .zip(&file_size)
+        .map(|((((path, sha1), sha512), download), &file_size)| Format1FileEntry {
+            path: path.to_string(),
+            hashes: Hashes {
+                sha1: sha1.to_string(),
+                sha512: sha512.to_string(),
+            },
+            downloads: vec![download.to_string()],
+            file_size,
+        })
+        .collect();
+
+    Ok(files)
 }
 
 /*
