@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use tokio::fs::read;
 
 #[derive(Serialize)]
-pub struct Format1FileEntry {
+pub struct FormatMQFileEntry {  // This file entry is used for Modrinth and QLMP
     path: String,
     hashes: Hashes,
     #[serde(rename = "downloads")]
@@ -39,7 +39,7 @@ pub struct ModrinthModpackManifest {
     version_id: String,
     name: String,
     summary: String,
-    files: Vec<Format1FileEntry>,
+    files: Vec<FormatMQFileEntry>,
     dependencies: Value,
 }
 
@@ -53,7 +53,7 @@ pub struct QlModpackManifest {
     author: String,
     summary: String,
     icon: Vec<String>,
-    files: Vec<Format1FileEntry>,
+    files: Vec<FormatMQFileEntry>,
 }
 
 pub async fn export_modrinth_modpack(
@@ -174,7 +174,7 @@ pub async fn export_modrinth_modpack(
 
     let overrides = result.clone();
 
-    package_format1_pack(json_data, zip_path, overrides).unwrap();
+    package_format1_pack("modrinth.index".to_string(), json_data, zip_path, overrides).unwrap();
 }
 
 /*
@@ -254,7 +254,8 @@ pub async fn export_qlmp_modpack(author: String, icon: Vec<String>, modpack_path
  */
 
 #[tokio::main]
-async fn package_format1_pack(
+async fn package_format1_pack(  // Format 1 is used for Modrinth, QLMP and CurseForge packs
+    json_name: String,
     json_data: String,
     zip_path: String,
     overrides: Vec<(String, String)>,
@@ -270,7 +271,7 @@ async fn package_format1_pack(
         add_file_to_zip(&mut writer, full_path, &in_zip_path).await?;
     }
 
-    let json_builder = ZipEntryBuilder::new("modrinth.index".into(), Compression::Deflate);
+    let json_builder = ZipEntryBuilder::new(json_name.into(), Compression::Deflate);
     writer
         .write_entry_whole(json_builder, json_data.as_bytes())
         .await
@@ -309,7 +310,7 @@ fn create_modrinth_index_json(
     dependencies.insert("minecraft".to_string(), Value::String(minecraft_version));
     dependencies.insert(loader_id.to_string(), Value::String(loader_version));
 
-    let files: Vec<Format1FileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
+    let files: Vec<FormatMQFileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
 
     let manifest = ModrinthModpackManifest {
         format_version,
@@ -345,7 +346,7 @@ fn create_qlmp_index_json(
     let mut loader = Map::new();
     loader.insert(loader_id.to_string(), Value::String(loader_version));
 
-    let files: Vec<Format1FileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
+    let files: Vec<FormatMQFileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
 
     let manifest = QlModpackManifest {
         format_version,
@@ -370,18 +371,18 @@ fn format_1_file_entry(
     sha512: Vec<String>,
     links: Vec<String>,
     file_size: Vec<u64>,
-) -> Result<Vec<Format1FileEntry>> {
+) -> Result<Vec<FormatMQFileEntry>> {
     let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
     let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
 
-    let files: Vec<Format1FileEntry> = paths
+    let files: Vec<FormatMQFileEntry> = paths
         .iter()
         .zip(&sha1)
         .zip(&sha512)
         .zip(&links)
         .zip(&file_size)
         .map(
-            |((((path, sha1), sha512), download), &file_size)| Format1FileEntry {
+            |((((path, sha1), sha512), download), &file_size)| FormatMQFileEntry {
                 path: path.to_string(),
                 hashes: Hashes {
                     sha1: sha1.to_string(),
