@@ -1,18 +1,18 @@
-use std::collections::HashSet;
-use serde::Serialize;
-use ql_core::InstanceSelection;
-use ql_core::json::VersionDetails;
 use crate::store::{ModId, ModIndex};
-use std::fs;
-use std::path::{PathBuf};
-use sha1::{Sha1, Digest};
-use sha2::{ Sha512};
-use hex;
-use std::io::{Result};
 use async_zip::tokio::write::ZipFileWriter;
 use async_zip::{Compression, ZipEntryBuilder};
-use tokio::fs::read;
+use hex;
+use ql_core::InstanceSelection;
+use ql_core::json::VersionDetails;
+use serde::Serialize;
 use serde_json::{Map, Value};
+use sha1::{Digest, Sha1};
+use sha2::Sha512;
+use std::collections::HashSet;
+use std::fs;
+use std::io::Result;
+use std::path::PathBuf;
+use tokio::fs::read;
 
 #[derive(Serialize)]
 pub struct Format1FileEntry {
@@ -56,7 +56,16 @@ pub struct QlModpackManifest {
     files: Vec<Format1FileEntry>,
 }
 
-pub async fn export_modrinth_modpack(modpack_path: String, modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides_full_path: Vec<String>, instance: InstanceSelection)  {
+pub async fn export_modrinth_modpack(
+    modpack_path: String,
+    modpack_name: String,
+    modpack_version: String,
+    modpack_summary: String,
+    modpack_file_name: String,
+    mod_ids: HashSet<ModId>,
+    overrides_full_path: Vec<String>,
+    instance: InstanceSelection,
+) {
     let index = ModIndex::load(&instance).await.unwrap();
 
     let mut urls: Vec<String> = Vec::new();
@@ -72,7 +81,8 @@ pub async fn export_modrinth_modpack(modpack_path: String, modpack_name: String,
             continue;
         };
 
-        let Some(primary_file) = config.files
+        let Some(primary_file) = config
+            .files
             .iter()
             .find(|file| file.primary)
             .or_else(|| config.files.first())
@@ -89,11 +99,10 @@ pub async fn export_modrinth_modpack(modpack_path: String, modpack_name: String,
         .map(|name| format!("mods/{}", name))
         .collect();
 
-
     let details = VersionDetails::load(&instance).await.unwrap();
     let minecraft_version = details.get_id();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = config.unwrap().mod_type.to_modrinth_str();  // TODO: INCORRECT: Waiting for change
+    let loader_name = config.unwrap().mod_type.to_modrinth_str(); // TODO: INCORRECT: Waiting for change
     let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
 
@@ -109,7 +118,6 @@ pub async fn export_modrinth_modpack(modpack_path: String, modpack_name: String,
         .map(|path| fs::metadata(path).map(|meta| meta.len()).unwrap_or(0))
         .collect();
 
-
     let sha1s: Vec<String> = full_path
         .clone()
         .into_iter()
@@ -122,7 +130,6 @@ pub async fn export_modrinth_modpack(modpack_path: String, modpack_name: String,
         })
         .collect();
 
-
     let sha512s: Vec<String> = full_path
         .into_iter()
         .map(|path| {
@@ -134,15 +141,33 @@ pub async fn export_modrinth_modpack(modpack_path: String, modpack_name: String,
         })
         .collect();
 
-    let json_data = create_modrinth_index_json(1, modpack_name, modpack_version, modpack_summary, loader_name.to_string(), loader_version.unwrap(), minecraft_version.to_string(), paths, sha1s, sha512s, urls, file_sizes).unwrap();
+    let json_data = create_modrinth_index_json(
+        1,
+        modpack_name,
+        modpack_version,
+        modpack_summary,
+        loader_name.to_string(),
+        loader_version.unwrap(),
+        minecraft_version.to_string(),
+        paths,
+        sha1s,
+        sha512s,
+        urls,
+        file_sizes,
+    )
+    .unwrap();
 
-    let zip_path= modpack_path + "/" + modpack_file_name.as_str() + ".mcmrpack";
+    let zip_path = modpack_path + "/" + modpack_file_name.as_str() + ".mcmrpack";
 
     let result: Vec<(String, String)> = overrides_full_path
         .iter()
         .map(|full| {
             let path = std::path::Path::new(full);
-            let relative = path.strip_prefix(std::path::Path::new(&instance.get_dot_minecraft_path().to_str().unwrap())).unwrap_or(path);
+            let relative = path
+                .strip_prefix(std::path::Path::new(
+                    &instance.get_dot_minecraft_path().to_str().unwrap(),
+                ))
+                .unwrap_or(path);
             (full.clone(), relative.to_string_lossy().into())
         })
         .collect();
@@ -229,8 +254,11 @@ pub async fn export_qlmp_modpack(author: String, icon: Vec<String>, modpack_path
  */
 
 #[tokio::main]
-async fn package_format1_pack(json_data: String, zip_path: String, overrides: Vec<(String, String)>) -> Result<()> {
-
+async fn package_format1_pack(
+    json_data: String,
+    zip_path: String,
+    overrides: Vec<(String, String)>,
+) -> Result<()> {
     let parent_dir = std::path::Path::new(&zip_path).parent().unwrap();
     tokio::fs::create_dir_all(parent_dir).await?;
 
@@ -243,7 +271,10 @@ async fn package_format1_pack(json_data: String, zip_path: String, overrides: Ve
     }
 
     let json_builder = ZipEntryBuilder::new("modrinth.index".into(), Compression::Deflate);
-    writer.write_entry_whole(json_builder, json_data.as_bytes()).await.unwrap();
+    writer
+        .write_entry_whole(json_builder, json_data.as_bytes())
+        .await
+        .unwrap();
 
     writer.close().await.unwrap();
     Ok(())
@@ -260,8 +291,20 @@ async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
     Ok(())
 }
 
-fn create_modrinth_index_json(format_version: u8, name: String,version_id: String, summary: String,loader_id: String, loader_version: String, minecraft_version: String, paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<String> {
-
+fn create_modrinth_index_json(
+    format_version: u8,
+    name: String,
+    version_id: String,
+    summary: String,
+    loader_id: String,
+    loader_version: String,
+    minecraft_version: String,
+    paths: Vec<String>,
+    sha1: Vec<String>,
+    sha512: Vec<String>,
+    links: Vec<String>,
+    file_size: Vec<u64>,
+) -> Result<String> {
     let mut dependencies = Map::new();
     dependencies.insert("minecraft".to_string(), Value::String(minecraft_version));
     dependencies.insert(loader_id.to_string(), Value::String(loader_version));
@@ -283,8 +326,22 @@ fn create_modrinth_index_json(format_version: u8, name: String,version_id: Strin
     Ok(json_data)
 }
 
-fn create_qlmp_index_json(format_version: u8, minecraft_version: String, loader_id: String, loader_version: String, version_id: String, name: String, author: String, summary: String, icon: Vec<String>, paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<String> {
-
+fn create_qlmp_index_json(
+    format_version: u8,
+    minecraft_version: String,
+    loader_id: String,
+    loader_version: String,
+    version_id: String,
+    name: String,
+    author: String,
+    summary: String,
+    icon: Vec<String>,
+    paths: Vec<String>,
+    sha1: Vec<String>,
+    sha512: Vec<String>,
+    links: Vec<String>,
+    file_size: Vec<u64>,
+) -> Result<String> {
     let mut loader = Map::new();
     loader.insert(loader_id.to_string(), Value::String(loader_version));
 
@@ -307,8 +364,13 @@ fn create_qlmp_index_json(format_version: u8, minecraft_version: String, loader_
     Ok(json_data)
 }
 
-fn format_1_file_entry(paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String>, links: Vec<String>, file_size: Vec<u64>) -> Result<Vec<Format1FileEntry>> {
-
+fn format_1_file_entry(
+    paths: Vec<String>,
+    sha1: Vec<String>,
+    sha512: Vec<String>,
+    links: Vec<String>,
+    file_size: Vec<u64>,
+) -> Result<Vec<Format1FileEntry>> {
     let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
     let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
 
@@ -318,15 +380,17 @@ fn format_1_file_entry(paths: Vec<String>, sha1: Vec<String>, sha512: Vec<String
         .zip(&sha512)
         .zip(&links)
         .zip(&file_size)
-        .map(|((((path, sha1), sha512), download), &file_size)| Format1FileEntry {
-            path: path.to_string(),
-            hashes: Hashes {
-                sha1: sha1.to_string(),
-                sha512: sha512.to_string(),
+        .map(
+            |((((path, sha1), sha512), download), &file_size)| Format1FileEntry {
+                path: path.to_string(),
+                hashes: Hashes {
+                    sha1: sha1.to_string(),
+                    sha512: sha512.to_string(),
+                },
+                downloads: vec![download.to_string()],
+                file_size,
             },
-            downloads: vec![download.to_string()],
-            file_size,
-        })
+        )
         .collect();
 
     Ok(files)
