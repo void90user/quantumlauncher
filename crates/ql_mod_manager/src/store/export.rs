@@ -10,12 +10,13 @@ use sha1::{Digest, Sha1};
 use sha2::Sha512;
 use std::collections::HashSet;
 use std::fs;
-use std::io::Result;
+use std::io::Result as StdResult;
 use std::path::PathBuf;
 use tokio::fs::read;
 
 #[derive(Serialize)]
-pub struct FormatMQFileEntry {  // This file entry is used for Modrinth and QLMP
+pub struct FormatMQFileEntry {
+    // This file entry is used for Modrinth and QLMP
     path: String,
     hashes: Hashes,
     #[serde(rename = "downloads")]
@@ -253,13 +254,23 @@ pub async fn export_qlmp_modpack(author: String, icon: Vec<String>, modpack_path
 }
  */
 
+#[derive(thiserror::Error, Debug)]
+enum PackageError {
+    #[error("zip error: {0}")]
+    Zip(#[from] async_zip::error::ZipError),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+}
+
 #[tokio::main]
-async fn package_format1_pack(  // Format 1 is used for Modrinth, QLMP and CurseForge packs
+async fn package_format1_pack(
+    // Format 1 is used for Modrinth, QLMP and CurseForge packs
     json_name: String,
     json_data: String,
     zip_path: String,
     overrides: Vec<(String, String)>,
-) -> Result<()> {
+) -> Result<(), PackageError> {
     let parent_dir = std::path::Path::new(&zip_path).parent().unwrap();
     tokio::fs::create_dir_all(parent_dir).await?;
 
@@ -274,10 +285,9 @@ async fn package_format1_pack(  // Format 1 is used for Modrinth, QLMP and Curse
     let json_builder = ZipEntryBuilder::new(json_name.into(), Compression::Deflate);
     writer
         .write_entry_whole(json_builder, json_data.as_bytes())
-        .await
-        .unwrap();
+        .await?;
 
-    writer.close().await.unwrap();
+    writer.close().await?;
     Ok(())
 }
 
@@ -285,7 +295,7 @@ async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
     writer: &mut ZipFileWriter<W>,
     original_file_path: &str,
     zip_relative_path: &str,
-) -> Result<()> {
+) -> StdResult<()> {
     let data = read(original_file_path).await?;
     let builder = ZipEntryBuilder::new(zip_relative_path.into(), Compression::Deflate);
     writer.write_entry_whole(builder, &data).await.unwrap();
@@ -305,7 +315,7 @@ fn create_modrinth_index_json(
     sha512: Vec<String>,
     links: Vec<String>,
     file_size: Vec<u64>,
-) -> Result<String> {
+) -> StdResult<String> {
     let mut dependencies = Map::new();
     dependencies.insert("minecraft".to_string(), Value::String(minecraft_version));
     dependencies.insert(loader_id.to_string(), Value::String(loader_version));
@@ -342,7 +352,7 @@ fn create_qlmp_index_json(
     sha512: Vec<String>,
     links: Vec<String>,
     file_size: Vec<u64>,
-) -> Result<String> {
+) -> StdResult<String> {
     let mut loader = Map::new();
     loader.insert(loader_id.to_string(), Value::String(loader_version));
 
@@ -371,7 +381,7 @@ fn format_1_file_entry(
     sha512: Vec<String>,
     links: Vec<String>,
     file_size: Vec<u64>,
-) -> Result<Vec<FormatMQFileEntry>> {
+) -> StdResult<Vec<FormatMQFileEntry>> {
     let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
     let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
 
